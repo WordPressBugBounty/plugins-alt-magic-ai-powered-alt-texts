@@ -1,0 +1,1 @@
+# plugins-alt-magic-ai-powered-alt-texts
