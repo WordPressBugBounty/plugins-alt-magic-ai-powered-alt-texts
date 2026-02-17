@@ -1,0 +1,110 @@
+ .main-content {
+     margin-top: 24px;
+ }
+
+ .card {
+     border: 1px solid #ccc;
+     padding: 16px;
+     margin: 16px 0;
+     border-radius: 8px;
+     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+     width: 30%;
+ }
+
+ .card-total-images p {
+     font-size: 16px;
+ }
+
+ .card-total-images h3 {
+
+     text-align: center;
+     font-size: 24px;
+ }
+
+ .card-images-with-missing-alt p {
+     font-size: 16px;
+ }
+
+ .card-images-with-missing-alt h3 {
+     color: #b32700;
+     text-align: center;
+     font-size: 24px;
+ }
+
+ .info-cards-container {
+     display: flex;
+     gap: 20px;
+ }
+
+ .bulk-generation-settings-container {
+     margin-top: -14px;
+ }
+
+ .bulk-generation-settings-container p {
+     font-size: 14px;
+     margin-bottom: 16px;
+     color: #4c9daa;
+     background-color: #6a929826;
+     padding: 12px;
+     width: max-content;
+     border-radius: 8px;
+ }
+
+ .bulk-generation-settings-action-item {
+     display: flex;
+     flex-direction: row;
+     gap: 8px;
+     align-items: center;
+
+ }
+
+ .bulk-generation-settings-action-item p {
+     font-size: 14px !important;
+     margin: 4px !important;
+ }
+
+ .bulk-generation-settings-action-button {
+     margin-top: 32px;
+     padding: 12px 32px;
+     border-radius: 4px;
+     border: 1px solid #ccc;
+     background-color: #f66e3c;
+     color: white;
+     font-size: 14px;
+     font-weight: 600;
+     display: inline-block;
+     /* or block, depending on your layout */
+     cursor: pointer;
+     /* Add any other styles you need */
+ }
+
+ .card-header {
+     display: flex;
+     flex-direction: row;
+     justify-content: space-between;
+     align-items: center;
+ }
+
+ .card-icon {
+     width: 20px;
+     height: 20px;
+ }
+
+ .card p {
+     font-size: 16px;
+     color: #333;
+ }
+
+ .account-info-container p {
+     font-size: 14px;
+     color: #2f6e31;
+     padding: 16px;
+     border-radius: 8px;
+     background-color: #ccf6cd;
+     width: max-content;
+ }
+
+ .account-info-container span {
+     font-weight: 600;
+     color: #2f6e31;
+ }

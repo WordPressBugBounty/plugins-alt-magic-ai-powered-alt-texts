@@ -1,0 +1,286 @@
+/* Alt Magic Deactivation Survey Modal Styles */
+
+.altm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 999999;
+}
+
+.altm-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000000;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.altm-modal-content {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: altm-modal-appear 0.3s ease-out;
+}
+
+@keyframes altm-modal-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.altm-modal-header {
+    padding: 25px 30px 20px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+.altm-modal-header .altm-logo {
+    max-width: 36px;
+    height: auto;
+    margin-bottom: 15px;
+    border-radius: 6px;
+}
+
+.altm-modal-header h2 {
+    margin: 0 0 10px;
+    font-size: 24px;
+    color: #333;
+    font-weight: 600;
+}
+
+.altm-modal-header p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.altm-modal-body {
+    padding: 25px 30px;
+}
+
+.altm-ltd-card {
+    margin: 10px 0 20px;
+    padding: 16px;
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    background: #fffdf6;
+    position: relative;
+}
+
+.altm-ltd-badge {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    background: #ffb200;
+    color: #000;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.altm-ltd-title {
+    margin: 0 0 6px;
+    font-size: 18px;
+    color: #333;
+}
+
+.altm-ltd-subtitle {
+    margin: 0 0 12px;
+    color: #444;
+}
+
+.altm-ltd-cta {
+    display: inline-block;
+}
+
+.altm-reasons-list {
+    margin-bottom: 20px;
+}
+
+.altm-reason-option {
+    display: block;
+    margin-bottom: 12px;
+    cursor: pointer;
+    padding: 10px 15px;
+    border: 1px solid #e1e1e1;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    background: #fafafa;
+}
+
+.altm-reason-option:hover {
+    background: #f0f8ff;
+    border-color: #0073aa;
+}
+
+.altm-reason-option input[type="radio"] {
+    margin-right: 10px;
+    margin-top: 0;
+}
+
+.altm-reason-option input[type="radio"]:checked+span {
+    font-weight: 600;
+    color: #0073aa;
+}
+
+.altm-reason-option span {
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+}
+
+#altm-details-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+#altm-details-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+#altm-details-section textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    box-sizing: border-box;
+}
+
+#altm-details-section textarea:focus {
+    border-color: #0073aa;
+    outline: none;
+    box-shadow: 0 0 0 1px #0073aa;
+}
+
+
+.altm-modal-footer {
+    padding: 20px 30px 25px;
+    border-top: 1px solid #eee;
+    background: #f9f9f9;
+    border-radius: 0 0 8px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.altm-footer-left {
+    flex: 1;
+}
+
+.altm-footer-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.altm-skip-link {
+    color: #666;
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.altm-skip-link:hover {
+    color: #0073aa;
+    text-decoration: underline;
+}
+
+.altm-modal-footer .button {
+    padding: 8px 20px;
+    font-size: 14px;
+    line-height: 1.4;
+    text-decoration: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.altm-modal-footer .button-primary {
+    background: #0073aa;
+    border-color: #0073aa;
+    color: #fff;
+}
+
+.altm-modal-footer .button-primary:hover:not(:disabled) {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+.altm-modal-footer .button-primary:disabled {
+    background: #ccc;
+    border-color: #ccc;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.altm-cancel-btn {
+    background: #fff;
+    border: 1px solid #ccc;
+    color: #333;
+}
+
+.altm-cancel-btn:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .altm-modal {
+        width: 95%;
+        max-width: none;
+    }
+
+    .altm-modal-header,
+    .altm-modal-body,
+    .altm-modal-footer {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .altm-modal-footer {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+
+    .altm-footer-left {
+        text-align: center;
+        order: 2;
+    }
+
+    .altm-footer-right {
+        order: 1;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .altm-modal-footer .button {
+        min-width: 120px;
+    }
+}

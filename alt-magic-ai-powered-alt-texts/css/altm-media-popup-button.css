@@ -1,0 +1,36 @@
+   /* Spinner styles */
+   .spinner {
+       border: 4px solid rgba(0, 0, 0, 0.1);
+       width: 24px;
+       height: 24px;
+       border-radius: 50%;
+       border-left-color: #09f;
+       animation: spin 1s linear infinite;
+       display: inline-block;
+   }
+
+   @keyframes spin {
+       to {
+           transform: rotate(360deg);
+       }
+   }
+
+   /* Success message styles */
+   #altMessage {
+       color: green;
+       margin-top: 10px;
+       display: none;
+   }
+
+   #customAltButton {
+       float: right;
+       margin-right: 10px;
+       margin-top: 4px;
+       margin-bottom: 10px;
+       background-color: #f66e3c;
+       border: none;
+       padding-block: 4px !important;
+       border-radius: 8px !important;
+       padding-inline: 12px !important;
+       font-size: 12px !important;
+   }
