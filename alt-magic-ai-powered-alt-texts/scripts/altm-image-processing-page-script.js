@@ -855,11 +855,12 @@ jQuery(document).ready(function ($) {
                         } else {
                             bulkProcessing.failedCount++;
 
-                            // Check if failure is due to insufficient credits
+                            // Check if failure is due to insufficient credits (not server errors like 503/timeout)
                             const errorMessage = result.message || 'Unable to process';
-                            if (errorMessage.toLowerCase().includes('credit') ||
+                            const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
                                 errorMessage.toLowerCase().includes('insufficient') ||
-                                (result.credits_available !== undefined && result.credits_available <= 0)) {
+                                (typeof result.credits_available === 'number' && result.credits_available <= 0);
+                            if (isCreditsError) {
                                 bulkProcessing.stoppedDueToCredits = true;
                                 bulkProcessing.shouldCancel = true;
                                 hasCreditsError = true;
@@ -892,16 +893,18 @@ jQuery(document).ready(function ($) {
                             errorMessage = response.data.message;
                         }
 
-                        // Detect credit-related errors
-                        if (errorMessage.toLowerCase().includes('credit') ||
+                        // Detect credit-related errors only (not server/timeout errors like 503)
+                        const hasCreditsFields = typeof response.data.credits_available === 'number' && typeof response.data.credits_required === 'number';
+                        const isCreditsError = (errorMessage.toLowerCase().includes('credit') ||
                             errorMessage.toLowerCase().includes('insufficient') ||
-                            (response.data.credits_available !== undefined && response.data.credits_required !== undefined)) {
+                            hasCreditsFields) && !errorMessage.toLowerCase().includes('temporarily unavailable') && !errorMessage.toLowerCase().includes('timeout');
+                        if (isCreditsError) {
                             bulkProcessing.stoppedDueToCredits = true;
                             bulkProcessing.shouldCancel = true;
                             shouldStopProcessing = true;
 
                             // Add credit information to error message if available
-                            if (response.data.credits_available !== undefined && response.data.credits_required !== undefined) {
+                            if (hasCreditsFields) {
                                 errorMessage = `Insufficient credits for this batch (Available: ${response.data.credits_available}, Required: ${response.data.credits_required})`;
                             }
                         }

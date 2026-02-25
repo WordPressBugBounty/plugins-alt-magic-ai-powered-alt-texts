@@ -3,7 +3,7 @@
 Plugin Name: Alt Magic: AI Powered Alt Texts & Image Renaming
 Plugin URI: https://altmagic.pro/
 Description: Automatically generate SEO-optimized alt texts and rename images using AI. Improve accessibility, rankings, and WooCommerce product image visibility with one powerful plugin.
-Version: 1.6.2
+Version: 1.6.3
 Author: Alt Magic
 Author URI: https://altmagic.pro/
 License: GPL-2.0-or-later
@@ -20,11 +20,11 @@ if (!defined('ABSPATH')) {
 
 
 // Define a base URL for API calls
-define('ALT_MAGIC_API_BASE_URL', 'https://alt-magic-api-eabaa2c8506a.herokuapp.com');
-//define('ALT_MAGIC_API_BASE_URL', 'http://192.168.1.16:3000');
+define('ALT_MAGIC_API_BASE_URL', 'https://api.altmagic.pro');
+//define('ALT_MAGIC_API_BASE_URL', 'http://192.168.1.6:3000');
 
 // Define plugin version constant
-define('ALT_MAGIC_PLUGIN_VERSION', '1.6.2');
+define('ALT_MAGIC_PLUGIN_VERSION', '1.6.3');
 
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-initialize-all-settings-values.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-supported-languages.php';

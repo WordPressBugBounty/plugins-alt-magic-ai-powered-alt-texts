@@ -44,7 +44,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.6.2';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.6.3';
 
     ?>
     <div class="wrap">

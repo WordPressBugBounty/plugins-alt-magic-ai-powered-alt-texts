@@ -409,50 +409,108 @@ function altm_generate_alt_text_batch($attachment_ids) {
         } else {
             // API request failed for this batch
             $error_message = 'API request failed';
-            
+            $is_credits_error = false;
+            $include_credits_in_result = true;
+            $stop_processing = false;
+
+            // Handle 502/503/504 (server/timeout errors) — do NOT treat as out of credits
+            if (in_array($response_code, array(502, 503, 504), true)) {
+                $error_message = __('Generation timeout. Please try this image again.', 'alt-magic');
+                $include_credits_in_result = false;
+                altm_log('Batch ' . ($batch_index + 1) . ' received ' . $response_code . ' (server/timeout error), continuing with next batch');
+            }
+            // Handle 401 Unauthorized
+            elseif ($response_code === 401) {
+                $error_message = __('Authentication failed (401). Please check your API key in Account Settings.', 'alt-magic');
+                $include_credits_in_result = false;
+                $stop_processing = true;
+                altm_log('Batch ' . ($batch_index + 1) . ' received 401 (unauthorized)');
+            }
+            // Handle 404 Not Found
+            elseif ($response_code === 404) {
+                $error_message = __('Service unavailable. Please contact support.', 'alt-magic');
+                $include_credits_in_result = false;
+                $stop_processing = true;
+                altm_log('Batch ' . ($batch_index + 1) . ' received 404 (not found)');
+            }
+            // Handle other 4xx client errors (400, 405, etc. — 401, 403, 404 handled above)
+            elseif ($response_code >= 400 && $response_code < 500 && ! in_array($response_code, array(401, 403, 404), true)) {
+                $error_message = sprintf(
+                    /* translators: %d is the HTTP status code */
+                    __('Request failed. Please try again.', 'alt-magic'),
+                    $response_code
+                );
+                if (isset($response_data['error']) && is_string($response_data['error'])) {
+                    $error_message = $response_data['error'];
+                }
+                $include_credits_in_result = false;
+                altm_log('Batch ' . ($batch_index + 1) . ' received ' . $response_code . ' (client error)');
+            }
+            // Handle other 5xx server errors (500, etc.)
+            elseif ($response_code >= 500) {
+                $error_message = sprintf(
+                    /* translators: %d is the HTTP status code */
+                    __('Server error. Please try again.', 'alt-magic'),
+                    $response_code
+                );
+                if (isset($response_data['error']) && is_string($response_data['error'])) {
+                    $error_message = $response_data['error'];
+                }
+                $include_credits_in_result = false;
+                altm_log('Batch ' . ($batch_index + 1) . ' received ' . $response_code . ' (server error)');
+            }
             // Handle 403 Forbidden (insufficient credits)
-            if ($response_code === 403 && isset($response_data['error'])) {
+            elseif ($response_code === 403 && isset($response_data['error'])) {
                 $error_message = $response_data['error'];
-                
+                $is_credits_error = true;
+                $stop_processing = true;
+
                 // Add credit information if available
                 if (isset($response_data['credits_available']) && isset($response_data['credits_required'])) {
                     $credits_info = sprintf(
-                        ' (Available: %d, Required: %d)', 
-                        $response_data['credits_available'], 
+                        ' (Available: %d, Required: %d)',
+                        $response_data['credits_available'],
                         $response_data['credits_required']
                     );
                     $error_message .= $credits_info;
                 }
             }
-            // Handle other error responses
+            // Handle 200/403 with success false (e.g. API returned success: false with error message)
             elseif (($response_code === 200 || $response_code === 403) && isset($response_data['success']) && ($response_data['success'] === false || $response_data['success'] === 0)) {
                 if (isset($response_data['error'])) {
                     $error_message = $response_data['error'];
-                    
-                    // Handle insufficient credits error specifically
                     if (isset($response_data['credits_available']) && isset($response_data['credits_required'])) {
+                        $is_credits_error = true;
+                        $stop_processing = true;
                         $credits_info = sprintf(
-                            ' (Available: %d, Required: %d)', 
-                            $response_data['credits_available'], 
+                            ' (Available: %d, Required: %d)',
+                            $response_data['credits_available'],
                             $response_data['credits_required']
                         );
                         $error_message .= $credits_info;
                     }
                 }
             }
-            
-            // Mark all images in this batch as failed
+
+            // Build result for each image in the batch (omit credits_available for non-credits errors so UI does not show "out of credits")
             foreach ($batch_attachment_ids as $attachment_id) {
-                $all_results[$attachment_id] = array(
+                $result_entry = array(
                     'success' => false,
-                    'message' => $error_message,
-                    'credits_available' => isset($response_data['credits_available']) ? $response_data['credits_available'] : null
+                    'message' => $error_message
                 );
+                if ($include_credits_in_result && isset($response_data['credits_available'])) {
+                    $result_entry['credits_available'] = $response_data['credits_available'];
+                }
+                $all_results[$attachment_id] = $result_entry;
             }
-            
-            // If this is a credits error, stop processing remaining batches
-            if ($response_code === 403 || (isset($response_data['error']) && strpos($response_data['error'], 'credits') !== false)) {
-                altm_log('Stopping batch processing due to insufficient credits');
+
+            // Stop only for credits errors or fatal errors (401, 404)
+            if ($is_credits_error || $stop_processing || ($response_code === 403) || (isset($response_data['error']) && is_string($response_data['error']) && strpos($response_data['error'], 'credits') !== false)) {
+                if ($is_credits_error) {
+                    altm_log('Stopping batch processing due to insufficient credits');
+                } else {
+                    altm_log('Stopping batch processing due to error (HTTP ' . $response_code . ')');
+                }
                 break;
             }
         }

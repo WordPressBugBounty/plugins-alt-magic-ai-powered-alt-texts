@@ -3,7 +3,7 @@ Contributors: altmagic, advait95
 Tags: image alt text, Alternative Text, alt text, image to text, ai alt text
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -118,7 +118,7 @@ This plugin connects to Alt Magic's cloud-based AI service to process images and
 
 **Remote Servers Called:**
 The plugin makes API calls to the following service endpoints:
-- Service Base URL: https://alt-magic-api-eabaa2c8506a.herokuapp.com
+- Service Base URL: https://api.altmagic.pro
 - `/image-name-generator-wp` - For AI-powered image filename generation
 - `/combined-generator-wp` - For combined alt text and image name generation
 - `/user-details` - For fetching user account information and credit balance
@@ -141,6 +141,9 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.6.3 =
+* Bug fix for bulk processing timeout
+
 = 1.6.2 =
 * Added all images tab to alt text generation page
 * Added filter to image renaming page
@@ -247,6 +250,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.6.3 =
+* Fixed bug for timeout during bulk processing. Process will not stop due to some image failures.  
+
 = 1.6.2 =
 * Added all images tab to alt text generation page, filter on image renaming page, and fixed caption/description not being updated during bulk alt text generation when flags are enabled.
 
