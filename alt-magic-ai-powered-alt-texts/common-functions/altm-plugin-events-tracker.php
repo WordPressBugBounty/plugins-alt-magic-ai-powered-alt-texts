@@ -38,9 +38,10 @@ function altm_get_current_user_email() {
  * Send plugin event ping to server
  * 
  * @param string $event_type The type of event (activated, reactivated, deactivated, installed, deleted)
+ * @param array $extra_data Optional extra payload fields
  * @return bool True if ping was sent successfully, false otherwise
  */
-function altm_send_plugin_event_ping($event_type) {
+function altm_send_plugin_event_ping($event_type, $extra_data = array()) {
     // Validate event type
     $valid_events = ['activated', 'reactivated', 'deactivated', 'installed', 'deleted'];
     if (!in_array($event_type, $valid_events)) {
@@ -62,6 +63,10 @@ function altm_send_plugin_event_ping($event_type) {
         'plugin_version' => ALT_MAGIC_PLUGIN_VERSION,
         'site_url' => $site_url
     );
+
+    if (!empty($extra_data) && is_array($extra_data)) {
+        $request_data = array_merge($request_data, $extra_data);
+    }
     
     // Add user_id if available
     if (!empty($user_id)) {
@@ -107,6 +112,36 @@ function altm_send_plugin_event_ping($event_type) {
 }
 
 /**
+ * Store deactivation reason context until the actual deactivation request runs.
+ *
+ * @param string $reason Deactivation reason.
+ * @return void
+ */
+function altm_set_deactivation_reason_context($reason) {
+    if (!is_string($reason) || $reason === '') {
+        return;
+    }
+
+    set_transient('_altm_deactivation_reason_context', sanitize_text_field($reason), 5 * MINUTE_IN_SECONDS);
+}
+
+/**
+ * Fetch and clear the pending deactivation reason context.
+ *
+ * @return string
+ */
+function altm_consume_deactivation_reason_context() {
+    $reason = get_transient('_altm_deactivation_reason_context');
+
+    if ($reason !== false) {
+        delete_transient('_altm_deactivation_reason_context');
+        return sanitize_text_field($reason);
+    }
+
+    return '';
+}
+
+/**
  * Check if plugin is being installed for the first time
  * This function checks if the plugin options exist to determine if it's a fresh installation
  * 
@@ -146,7 +181,14 @@ function altm_handle_plugin_activation() {
  * Handle plugin deactivation event
  */
 function altm_handle_plugin_deactivation() {
-    altm_send_plugin_event_ping('deactivated');
+    $reason = altm_consume_deactivation_reason_context();
+    $extra_data = array();
+
+    if (!empty($reason)) {
+        $extra_data['deactivation_reason'] = $reason;
+    }
+
+    altm_send_plugin_event_ping('deactivated', $extra_data);
 }
 
 /**

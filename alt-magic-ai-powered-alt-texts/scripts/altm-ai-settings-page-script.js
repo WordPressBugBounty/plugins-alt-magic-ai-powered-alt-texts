@@ -8,8 +8,12 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.addEventListener('click', function (e) {
             e.preventDefault();
             const target = this.getAttribute('data-target');
-            tabButtons.forEach(b => b.classList.remove('nav-tab-active'));
+            tabButtons.forEach(b => {
+                b.classList.remove('nav-tab-active');
+                b.setAttribute('aria-selected', 'false');
+            });
             this.classList.add('nav-tab-active');
+            this.setAttribute('aria-selected', 'true');
             tabContents.forEach(group => {
                 if (group.id === target) {
                     group.style.display = 'table-row-group';

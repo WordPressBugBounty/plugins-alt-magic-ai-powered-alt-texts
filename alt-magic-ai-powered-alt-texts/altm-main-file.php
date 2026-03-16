@@ -1,16 +1,16 @@
 <?php
 /*
-Plugin Name: Alt Magic: AI Powered Alt Texts & Image Renaming
+Plugin Name: Alt Magic: AI Alt Text Generator for WP & Image Renaming
 Plugin URI: https://altmagic.pro/
 Description: Automatically generate SEO-optimized alt texts and rename images using AI. Improve accessibility, rankings, and WooCommerce product image visibility with one powerful plugin.
-Version: 1.6.3
+Version: 1.7.1
 Author: Alt Magic
 Author URI: https://altmagic.pro/
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Requires at least: 5.0
 Tested up to: 6.9
-Requires PHP: 7.4
+Requires PHP: 7.0
 */
 
 // Ensure this file is not accessed directly
@@ -21,10 +21,10 @@ if (!defined('ABSPATH')) {
 
 // Define a base URL for API calls
 define('ALT_MAGIC_API_BASE_URL', 'https://api.altmagic.pro');
-//define('ALT_MAGIC_API_BASE_URL', 'http://192.168.1.6:3000');
+//define('ALT_MAGIC_API_BASE_URL', 'http://192.168.1.3:3000');
 
 // Define plugin version constant
-define('ALT_MAGIC_PLUGIN_VERSION', '1.6.3');
+define('ALT_MAGIC_PLUGIN_VERSION', '1.7.1');
 
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-initialize-all-settings-values.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-supported-languages.php';

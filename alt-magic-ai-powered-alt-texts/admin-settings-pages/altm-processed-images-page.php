@@ -19,8 +19,8 @@ function altm_render_processed_images_page() {
     
     // Get user email for purchase link
     $purchase_url = !empty($user_email) 
-        ? 'https://altmagic.pro/?wp_email=' . urlencode($user_email) . '#pricing'
-        : 'https://altmagic.pro/#pricing';
+        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
+        : 'https://www.altmagic.pro/pricing';
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>

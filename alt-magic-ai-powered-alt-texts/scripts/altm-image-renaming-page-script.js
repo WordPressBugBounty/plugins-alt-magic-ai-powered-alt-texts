@@ -333,8 +333,8 @@ jQuery(document).ready(function ($) {
         // Get user email from WordPress localized data or fallback
         const userEmail = altmImageRenaming.userEmail || '';
         const purchaseUrl = userEmail
-            ? `https://altmagic.pro/?wp_email=${encodeURIComponent(userEmail)}#pricing`
-            : 'https://altmagic.pro/#pricing';
+            ? `https://www.altmagic.pro/pricing?wp_email=${encodeURIComponent(userEmail)}`
+            : 'https://www.altmagic.pro/pricing';
 
         // Default message if none provided
         const message = customMessage || 'You don\'t have enough credits. Please purchase more credits to continue.';
@@ -1396,7 +1396,7 @@ jQuery(document).ready(function ($) {
     function updateFilterDisplay() {
         const filterIcon = $('#image-type-filter-icon');
         const filterBtn = $('#image-type-filter-btn');
-        
+
         if (allImagesTypeFilter === 'featured') {
             filterIcon.css('color', '#2271b1');
             filterBtn.css({

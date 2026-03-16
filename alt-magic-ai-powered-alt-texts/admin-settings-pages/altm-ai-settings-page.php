@@ -35,7 +35,7 @@ function alt_magic_render_ai_settings_page() {
         'alt-magic-media-popup-button-css',
         plugin_dir_url(__FILE__) . '../css/altm-ai-settings-page.css',
         array(), // Dependencies
-        '1.0.3'  // Version number
+        '1.0.5'  // Version number
     );
 
     // Register and enqueue the JavaScript file
@@ -43,7 +43,7 @@ function alt_magic_render_ai_settings_page() {
         'alt-magic-ai-settings-js',
         esc_url(plugin_dir_url(__FILE__) . '../scripts/altm-ai-settings-page-script.js'),
         array('jquery'), // Dependencies
-        '1.0.4', // Version number - Updated for image accessibility check
+        '1.0.5', // Version number
         true // Load in footer
     );
     wp_enqueue_script('alt-magic-ai-settings-js');
@@ -97,12 +97,33 @@ function alt_magic_render_ai_settings_page() {
         <div class="ai-settings-container">
             <form id="alt-magic-settings-form">
                 <?php wp_nonce_field('alt_magic_save_settings', 'alt_magic_nonce'); ?>
-                <h2 class="nav-tab-wrapper" style="margin-top:16px;">
-                    <a href="#" class="nav-tab nav-tab-active" data-target="altm-tab-alt">Alt Text Settings</a>
-                    <a href="#" class="nav-tab" data-target="altm-tab-rename">Image Rename Settings</a>
+                <h2 class="nav-tab-wrapper alt-magic-settings-tabs" role="tablist" aria-label="Alt Magic settings sections">
+                    <a href="#" class="nav-tab nav-tab-active" data-target="altm-tab-alt" role="tab" aria-selected="true">Alt Text Settings</a>
+                    <a href="#" class="nav-tab" data-target="altm-tab-rename" role="tab" aria-selected="false">Image Rename Settings</a>
                 </h2>
                 <table class="form-table" id="alt-magic-settings-table">
                     <tbody id="altm-tab-alt" class="altm-tab-content" style="display: table-row-group;">
+                    <tr class="setting-row">
+                        <th scope="row">
+                            <div class="setting-title">Alt Text Language</div>
+                            <div class="setting-description">Select the language for generated alt text</div>
+                        </th>
+                        <td>
+                            <select name="alt_magic_language" class="alt-magic-setting">
+                                <?php 
+                                if (isset($altm_supported_languages) && is_array($altm_supported_languages)) {
+                                    foreach ($altm_supported_languages as $code => $language): 
+                                ?>
+                                    <option value="<?php echo esc_attr($code); ?>" <?php selected($options['alt_magic_language'], $code); ?>><?php echo esc_html($language); ?></option>
+                                <?php 
+                                    endforeach;
+                                } else {
+                                    echo '<option value="">No languages available</option>';
+                                }
+                                ?>
+                            </select>
+                        </td>
+                    </tr>
                     <tr class="setting-row">
                         <th scope="row">
                             <div class="setting-title">Auto-generate Alt Text</div>
@@ -142,28 +163,7 @@ function alt_magic_render_ai_settings_page() {
                             </div>
                         </td>
                     </tr>
-                    <tr class="setting-row">
-                        <th scope="row">
-                            <div class="setting-title">Alt Text Language</div>
-                            <div class="setting-description">Select the language for generated alt text</div>
-                        </th>
-                        <td>
-                            <select name="alt_magic_language" class="alt-magic-setting">
-                                <?php 
-                                if (isset($altm_supported_languages) && is_array($altm_supported_languages)) {
-                                    foreach ($altm_supported_languages as $code => $language): 
-                                ?>
-                                    <option value="<?php echo esc_attr($code); ?>" <?php selected($options['alt_magic_language'], $code); ?>><?php echo esc_html($language); ?></option>
-                                <?php 
-                                    endforeach;
-                                } else {
-                                    echo '<option value="">No languages available</option>';
-                                }
-                                ?>
-                            </select>
-                        </td>
-                    </tr>
-                    
+
                     <tr class="setting-row">
                         <th scope="row">
                             <div class="setting-title">Field Mapping</div>
@@ -277,16 +277,6 @@ function alt_magic_render_ai_settings_page() {
                     <tbody id="altm-tab-rename" class="altm-tab-content" style="display: none;">
                         <tr class="setting-row">
                             <th scope="row">
-                                <div class="setting-title">Image Renaming</div>
-                                <div class="setting-description">Automatically rename uploaded images</div>
-                            </th>
-                            <td>
-                                <input type="checkbox" name="alt_magic_auto_rename_on_upload" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_auto_rename_on_upload'])); ?>> Enable automatic image renaming
-                                <p class="alt-magic-setting-sub-label">When enabled, uploaded images will be automatically renamed using AI-generated descriptive names.</p>
-                            </td>
-                        </tr>
-                        <tr class="setting-row">
-                            <th scope="row">
                                 <div class="setting-title">Image Name Language</div>
                                 <div class="setting-description">Select the language for generated image names</div>
                             </th>
@@ -304,6 +294,16 @@ function alt_magic_render_ai_settings_page() {
                                     }
                                     ?>
                                 </select>
+                            </td>
+                        </tr>
+                        <tr class="setting-row">
+                            <th scope="row">
+                                <div class="setting-title">Image Renaming</div>
+                                <div class="setting-description">Automatically rename uploaded images</div>
+                            </th>
+                            <td>
+                                <input type="checkbox" name="alt_magic_auto_rename_on_upload" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_auto_rename_on_upload'])); ?>> Enable automatic image renaming
+                                <p class="alt-magic-setting-sub-label">When enabled, uploaded images will be automatically renamed using AI-generated descriptive names.</p>
                             </td>
                         </tr>
                         <tr class="setting-row">

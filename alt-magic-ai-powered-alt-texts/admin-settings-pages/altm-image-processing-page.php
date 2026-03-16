@@ -28,8 +28,8 @@ function altm_render_image_processing_page() {
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
     $purchase_url = !empty($user_email) 
-        ? 'https://altmagic.pro/?wp_email=' . urlencode($user_email) . '#pricing'
-        : 'https://altmagic.pro/#pricing';
+        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
+        : 'https://www.altmagic.pro/pricing';
     
     // Localize script to pass PHP variables to JavaScript
     wp_localize_script('altm-image-processing-script', 'altmImageProcessing', array(
@@ -239,7 +239,7 @@ function altm_render_image_processing_page() {
                 <div style="font-size: 32px; margin-bottom: 15px;">⚠️</div>
                 <div style="font-size: 20px; font-weight: bold; color: #b70000; margin-bottom: 8px;">Processing Stopped</div>
                 <div style="color: #b70000; font-size: 14px; margin-bottom: 15px;">You've run out of credits. Purchase more to continue processing.</div>
-                <a href="https://altmagic.pro/?wp_email=<?php echo esc_attr(get_option('alt_magic_user_id', '')); ?>#pricing" target="_blank" class="button button-primary" style="margin-top: 10px;">Purchase Credits</a>
+                <a href="<?php echo esc_url(!empty(get_option('alt_magic_user_id', '')) ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode(get_option('alt_magic_user_id', '')) : 'https://www.altmagic.pro/pricing'); ?>" target="_blank" class="button button-primary" style="margin-top: 10px;">Purchase Credits</a>
             </div>
             
             <div style="text-align: center;">

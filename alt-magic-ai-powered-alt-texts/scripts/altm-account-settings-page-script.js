@@ -5,6 +5,40 @@ document.addEventListener('DOMContentLoaded', function () {
         return parseInt(num).toLocaleString();
     }
 
+    function getNextMonthRenewalDateLabel() {
+        var nextRenewalDate = new Date();
+        nextRenewalDate.setDate(1);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
+        return nextRenewalDate.toLocaleDateString(undefined, {
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    function getPlanType(userDetails) {
+        if (!userDetails || typeof userDetails !== 'object') {
+            return '';
+        }
+
+        var candidates = [
+            userDetails.plan_type,
+            userDetails.planType,
+            userDetails.subscription_plan_type,
+            userDetails.subscriptionPlanType,
+            userDetails.subscription && userDetails.subscription.plan_type,
+            userDetails.subscription && userDetails.subscription.planType,
+            userDetails.plan && userDetails.plan.type
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            if (typeof candidates[i] === 'string' && candidates[i].trim()) {
+                return candidates[i].trim().toLowerCase();
+            }
+        }
+
+        return '';
+    }
+
     var pluginUrl = altMagicSettings.pluginUrl;
     var apiKeyModal = document.getElementById('api-key-modal');
     var apiKeyInput = document.getElementById('alt_magic_api_key');
@@ -97,6 +131,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Format credits for dashboard (show "X credits")
             if (isDashboard) {
                 var credits = parseInt(userDetails.credits_available) || 0;
+                var planType = getPlanType(userDetails);
+                var creditsRenewalNote = document.getElementById('dashboard-credits-renewal');
                 creditsElement.textContent = formatNumber(credits) + ' credits';
 
                 // Apply color class based on credits amount
@@ -119,12 +155,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Update buy credits link with email parameter
                     var email = userDetails.email || altMagicSettings.userEmail;
                     buyCreditsLink.href = email
-                        ? 'https://altmagic.pro/?wp_email=' + encodeURIComponent(email) + '#pricing'
-                        : 'https://altmagic.pro/#pricing';
+                        ? 'https://www.altmagic.pro/pricing?wp_email=' + encodeURIComponent(email)
+                        : 'https://www.altmagic.pro/pricing';
                     // Add prominent style when credits are below 24
                     buyCreditsLink.classList.remove('alt-magic-buy-credits-link-urgent');
                     if (credits < 24) {
                         buyCreditsLink.classList.add('alt-magic-buy-credits-link-urgent');
+                    }
+                }
+
+                if (creditsRenewalNote) {
+                    if (planType === 'free') {
+                        creditsRenewalNote.textContent = 'Your 50 free credits renew on ' + getNextMonthRenewalDateLabel() + '.';
+                        creditsRenewalNote.style.display = 'block';
+                    } else {
+                        creditsRenewalNote.textContent = '';
+                        creditsRenewalNote.style.display = 'none';
                     }
                 }
             } else {

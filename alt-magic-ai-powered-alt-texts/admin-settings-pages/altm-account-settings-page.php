@@ -44,7 +44,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.6.3';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.1';
 
     ?>
     <div class="wrap">
@@ -69,17 +69,17 @@ function alt_magic_render_settings_page() {
                     <div class="alt-magic-option-label alt-magic-label-green">New to Alt Magic</div>
                     <div class="alt-magic-option-content">
                         <h3 class="alt-magic-option-heading">Create Your Alt Magic Account</h3>
-                        <p class="alt-magic-option-description">Automatically sign in with your WordPress email</p>
+                        <p class="alt-magic-option-description">Automatically sign in with your WordPress email.</p>
                         <div class="alt-magic-benefit">
-                            <span class="alt-magic-benefit-text">🎁 Get 25 free image credits when you connect</span>
+                            <span class="alt-magic-benefit-text">🎁 Get 50 free image credits every month when you connect.</span>
                         </div>
                         <button type="button" id="login-with-wordpress" class="alt-magic-button alt-magic-button-primary">
                             Continue with WordPress
                         </button>
-                        <div class="alt-magic-secondary-option">
-                            <span class="alt-magic-secondary-text">Want to use a different email?</span>
-                            <a href="https://app.altmagic.pro/register" target="_blank" class="alt-magic-secondary-link">Create an account manually →</a>
-                        </div>
+                        <span class="alt-magic-recommended-tag">
+                            <img src="<?php echo esc_url(plugin_dir_url(__FILE__) . '../assets/altm-green-tick.svg'); ?>" alt="" class="alt-magic-recommended-tick" />
+                            Recommended for new users
+                        </span>
                     </div>
                 </div>
                 
@@ -175,8 +175,9 @@ function alt_magic_render_settings_page() {
                                 <h2 class="alt-magic-connected-heading">Credits Available</h2>
                                 <div class="alt-magic-credits-display-large">
                                     <span class="alt-magic-credits-badge-large" id="dashboard-credits-available"></span>
-                                    <a href="https://altmagic.pro/#pricing" target="_blank" class="alt-magic-buy-credits-link" id="buy-credits-link" style="display: none;">Buy more credits →</a>
+                                    <a href="https://www.altmagic.pro/pricing" target="_blank" class="alt-magic-buy-credits-link" id="buy-credits-link" style="display: none;">Buy more credits →</a>
                                 </div>
+                                <p class="alt-magic-credits-renewal-note" id="dashboard-credits-renewal" style="display: none;"></p>
                                 <p class="alt-magic-credits-description">Use credits to generate alt text and rename your images.<br><br>1 credit = 1 image alt text generation<br>1 credit = 1 image name generation</p>
                             </div>
                         </div>

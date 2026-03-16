@@ -1,17 +1,33 @@
-=== Alt Magic: AI Powered Alt Texts & Image Renaming ===
+=== Alt Magic: AI Alt Text Generator for WP & Image Renaming ===
 Contributors: altmagic, advait95
-Tags: image alt text, Alternative Text, alt text, image to text, ai alt text
+Tags: ai alt text, image alt text, accessibility, woocommerce, bulk alt text
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.6.3
+Stable tag: 1.7.1
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Automatically generate SEO-optimized AI alt texts and rename images with AI. Improve accessibility, ranking, and WooCommerce product image visibility.
+AI alt text generator for WordPress with free monthly credits, fast bulk generation for existing and new images, and optional AI image renaming.
 
 == Description ==
-Alt Magic is an AI-powered WordPress plugin that automatically generates descriptive alt texts and image filenames to enhance SEO, accessibility, and discoverability. Perfect for bloggers, agencies, and e-commerce sites seeking automated SEO image optimization.
+Alt Magic is an AI alt text generator for WordPress that automatically creates SEO-friendly image alt text for newly uploaded images and existing media library images.
+
+Start with 50 free monthly credits, then scale with fast bulk generation built for WooCommerce stores, publishers, agencies, and image-heavy WordPress sites.
+
+Built for high-volume workflows, Alt Magic can process 10,000+ images per hour. It helps improve image accessibility, supports better image SEO, and makes alt text generation easier to manage across large media libraries.
+
+Alt Magic also includes optional AI image renaming for teams that want cleaner, more descriptive filenames as part of their image optimization workflow.
+
+== Why users choose Alt Magic ==
+* Highly contextual and SEO-optimized
+* 50 Free monthly alt text credits to get started easily
+* Fast bulk alt text generation for existing and newly uploaded images
+* Process 10,000+ images per hour on high-volume WordPress sites
+* Affordable pricing at scale for stores, publishers, and agencies
+* Active support with direct help for setup, troubleshooting, and custom guidance
+* Built for WordPress and WooCommerce workflows
+* Optional AI image renaming for better image organization
 
 == Customer Reviews ==
 ⭐⭐⭐⭐⭐ **Rated 4.8 stars on G2** - [Read reviews on G2](https://www.g2.com/products/alt-magic-ai-powered-alt-texts-at-scale/reviews)
@@ -19,31 +35,60 @@ Alt Magic is an AI-powered WordPress plugin that automatically generates descrip
 == Watch Alt Magic Plug-in in Action: ==
 https://www.youtube.com/watch?v=lHqcZ2Egz4Y
 
-== Features: ==
-**Automatic Generation:** Every newly uploaded image is automatically analyzed and contextually relevant alt text is added to the image properties.
+== Built for scale and complete image SEO workflows ==
 
-**One-Click Bulk Generation:** Generate alt text for existing images with a single click, saving you hours of manual work.
+Many AI alt text plugins work well for smaller libraries, but become slower, more expensive, or harder to scale when you need bulk processing across a large number of images.
 
-**Extensive Image Formats:** Support for all common image formats including JPG, JPEG, PNG, GIF, WebP, AVIF, and SVG files, ensuring compatibility with your entire image library.
+Some tools rely on external model limits or generic workflows that are not built for large WordPress media libraries. Others focus only on adding alt text in the media library and do not offer a broader image optimization workflow.
 
-**Bulk Processing:** Use our bulk generation tool to add alt text to multiple existing images in your media library at once.
+Alt Magic is built differently. It is designed for fast, stable, high-volume processing with better cost efficiency at scale.
 
-**Processed Images History:** View and manage all images that have been processed by Alt Magic, with the ability to edit or regenerate alt text directly from this interface.
+With Alt Magic, you get:
+* Faster bulk processing for large image libraries
+* Better value on high-volume workloads
+* Support for both existing images and new uploads
+* AI image renaming for both existing images and new uploads
+* A broader WordPress image SEO workflow from one plugin
 
-**Cover All Media Properties:** Automatically add not just alt texts, but also captions, titles, and descriptions to your images.
+This makes Alt Magic a strong fit for WooCommerce stores, publishers, agencies, directories, and other image-heavy websites.
 
-**Contextual And Keyword Rich:** All generated alt texts are intelligently crafted based on the content and context of your images and surrounding text.
+== Features ==
 
-**SEO Plugin Integration:** Seamlessly integrates with popular SEO plugins like Yoast, Rank Math, SEO Press, Squirrly SEO, and AISEO to create keyword-rich alt texts that boost your SEO.
+**Automatic Alt Text Generation**  
+Generate alt text automatically for newly uploaded images.
 
-**WooCommerce Optimization:** Enhanced support for WooCommerce stores with intelligent alt text generation that includes product names, features, and benefits in the alt text, improving your product image SEO and discoverability.
+**Bulk Alt Text Generation**  
+Create alt text for existing WordPress media library images in bulk with a single click.
 
-**Multilingual Support:** Generate alt texts in over 150 languages. Perfect for multilingual websites and global e-commerce stores.
+**High-Speed Processing**  
+Built for large sites and media libraries with processing speeds of 10,000+ images per hour.
 
-**AI-Powered Image Renaming:** Automatically rename uploaded images with descriptive, SEO-friendly filenames using AI analysis of image content.
+**Free Monthly Credits**  
+Start free every month with 50 credits and scale up only when you need more volume.
 
-**Manual Image Renaming:** Full control with manual renaming options for fine-tuning image filenames to your specific needs.
+**WooCommerce Optimization**  
+Generate better alt text for product images across WooCommerce stores and large catalogs.
 
+**Context-Aware Generation**  
+Create more relevant alt text based on image content and surrounding context.
+
+**Additional Media Properties**  
+Generate not only alt text, but also captions, titles, and descriptions where supported.
+
+**Processed Images History**  
+View, manage, edit, and regenerate previously processed images from one place.
+
+**SEO Plugin Compatibility**  
+Works smoothly with popular SEO plugins including Yoast, Rank Math, SEOPress, Squirrly SEO, and AIOSEO.
+
+**Multilingual Support**  
+Generate alt text in over 150 languages for multilingual websites and global stores.
+
+**AI Image Renaming**  
+Rename already uploaded images and automatically rename new uploads with descriptive, SEO-friendly filenames.
+
+**Broad Format Support**  
+Supports common image formats including JPG, JPEG, PNG, GIF, WebP, AVIF, and SVG.
 
 == Frequently Asked Questions ==
 
@@ -65,20 +110,17 @@ Alt Magic offers both a web app interface and WordPress plugin integration, givi
 = What languages does Alt Magic support? =
 Alt Magic supports over 150 languages for alt text generation, making it perfect for multilingual websites and global e-commerce stores.
 
-= How do the monthly credits work? =
-Monthly credits are generous and unused credits roll over annually. This means you can save up credits during slower months and use them when you have more images to process.
-
 = Can I use Alt Magic for bulk processing? =
 Yes, Alt Magic offers bulk alt text generation. You can process multiple images at once, and there's also CSV upload support for seamless batch processing of large image libraries.
 
 = Is Alt Magic compatible with WooCommerce? =
 Yes, Alt Magic has enhanced WooCommerce support with intelligent alt text generation that includes product names, features, and benefits, improving your product image SEO and discoverability.
 
+= How does Alt Magic compare to AltText.ai? =
+It is especially well suited for WooCommerce stores, publishers, agencies, and other sites with large media libraries that need better value at high volume. For a detailed feature and workflow comparison, see [Alt Magic vs AltText.ai](https://www.altmagic.pro/alternatives/alttext-ai).
+
 = How does Alt Magic handle SEO optimization? =
 Alt Magic automatically embeds relevant, high-impact SEO keywords into descriptions. It integrates with popular SEO plugins to create keyword-rich alt texts that boost your search rankings.
-
-= What's the difference between Alt Magic and other alt text tools like AltText.ai? =
-Alt Magic provides better quality generations with more accurate and succinct descriptions. It uses industry-specific language instead of generic AI language, even for niche markets. Additionally, Alt Magic offers more generous plan limits and better pricing.
 
 = Can I generate alt text for accessibility purposes rather than just SEO? =
 Absolutely! Alt Magic is excellent for enhancing digital accessibility. It generates precise image descriptions that work perfectly with screen readers and assistive technologies, making your content accessible to all users.
@@ -89,11 +131,8 @@ Yes, Alt Magic is designed to generate contextually relevant alt texts based on 
 = How easy is the setup process? =
 Alt Magic offers simple one-click installation through your WordPress dashboard with zero configuration required. It's truly "set it and forget it" functionality that works seamlessly with all major WordPress themes, page builders, and plugins.
 
-= What happens to my credits if I don't use them all in a month? =
-Unused monthly credits roll over and reset annually, giving you flexibility to use them when you need them most. This is especially useful for businesses with seasonal content creation patterns.
-
 = What image formats does Alt Magic support? =
-Alt Magic supports all common image formats including JPG, JPEG, PNG, GIF, WebP, AVIF, and SVG files. The plugin can process these formats to generate accurate alt text descriptions.
+Alt Magic supports all common image formats including JPG, JPEG, PNG, GIF, WebP, AVIF, HEIC and SVG files. The plugin can process these formats to generate accurate alt text descriptions.
 
 = Do I own the alt text I generate with Alt Magic? =
 Yes, you completely own all the alt text content you generate using Alt Magic. The generated alt texts are your intellectual property and you can use, modify, or distribute them as needed for your websites and projects.
@@ -101,13 +140,22 @@ Yes, you completely own all the alt text content you generate using Alt Magic. T
 = Can I use Alt Magic with multiple sites? =
 Yes, you can use Alt Magic on as many sites as you want - there's no limit! Whether you're managing one website or multiple client sites, Alt Magic works across all your WordPress installations without any restrictions.
 
+= How does Alt Magic pricing work? =
+Alt Magic offers flexible pricing. We have credit packs that never expire, which is useful if your image volume changes over time or comes in batches.
+For larger workloads, Alt Magic also offers custom plans and pricing for high-volume use cases.
+
+= Does Alt Magic include free monthly credits? =
+Yes. Alt Magic includes 50 free credits every month, which you can use for both alt text generation and AI image renaming. These free credits automatically refresh on the 1st of each month.
+
+
 == Screenshots ==
-1. Alt text generation button on media upload screen 
-2. Alt text auto generation settings
-3. Bulk alt text generation
-4. Bulk alt text generation with enhanced controls
-5. Processed Images history page for viewing and managing generated alt texts
-6. Automatic and Bulk Image renaming with AI
+1. Manual alt text generation from the media library with optional title, caption, and description updates
+2. AI settings with 150+ language support for generated alt text
+3. Bulk alt text generation with smart image categorization and detailed image controls
+4. High-speed bulk alt text generation with progress tracking
+5. Automatic alt text generation and image renaming on new uploads
+6. AI image renaming with smart filename categorization
+7. Alt text verbosity controls and custom prompt tuning
 
 == Service Information ==
 
@@ -126,7 +174,7 @@ The plugin makes API calls to the following service endpoints:
 
 **Account Requirements:**
 An Alt Magic account and API key are required to use this plugin. Users must:
-1. Sign up for an account at https://altmagic.pro
+1. Sign up for an account at https://www.altmagic.pro
 2. Obtain an API key from their Alt Magic dashboard
 3. Enter the API key in the plugin settings
 
@@ -135,12 +183,15 @@ The plugin sends image data (image files or URLs) to the Alt Magic service for A
 
 **Privacy and Terms:**
 For detailed information about data handling, privacy practices, and terms of service, please refer to:
-- [Service Link](https://altmagic.pro)
-- [Terms of Use](https://altmagic.pro/terms-of-service)
-- [Privacy Policy](https://altmagic.pro/privacy-policy)
+- [Service Link](https://www.altmagic.pro)
+- [Terms of Use](https://www.altmagic.pro/terms-of-service)
+- [Privacy Policy](https://www.altmagic.pro/privacy-policy)
 
 
 == Changelog ==
+= 1.7.1 =
+* Ux enhancement with small bug fixes
+
 = 1.6.3 =
 * Bug fix for bulk processing timeout
 
@@ -250,6 +301,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.7.1 =
+* Ux enhancement with small bug fixes
+
 = 1.6.3 =
 * Fixed bug for timeout during bulk processing. Process will not stop due to some image failures.  
 
@@ -319,5 +373,3 @@ For detailed information about data handling, privacy practices, and terms of se
 * Added Processed Images feature to view and edit historical processed images
 * Improved media library with alt text column and visual enhancements
 * Fixed various display issues with special characters in alt text
-
-

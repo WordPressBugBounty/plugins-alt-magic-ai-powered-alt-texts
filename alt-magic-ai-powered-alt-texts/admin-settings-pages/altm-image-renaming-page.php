@@ -29,8 +29,8 @@ function altm_render_image_renaming_page() {
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
     $purchase_url = !empty($user_email) 
-        ? 'https://altmagic.pro/?wp_email=' . urlencode($user_email) . '#pricing'
-        : 'https://altmagic.pro/#pricing';
+        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
+        : 'https://www.altmagic.pro/pricing';
     
     // Localize script to pass PHP variables to JavaScript
     wp_localize_script('altm-image-renaming-script', 'altmImageRenaming', array(
