@@ -1,9 +1,9 @@
-=== Alt Magic: AI Alt Text Generator for WP & Image Renaming ===
+=== Alt Magic: AI Image Alt Text Generator for WP & Image Rename ===
 Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, woocommerce, bulk alt text
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.7.1
+Stable tag: 1.7.2
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -189,6 +189,9 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.7.2 =
+* Updated plugin branding with UX enhancements
+
 = 1.7.1 =
 * Ux enhancement with small bug fixes
 
@@ -301,6 +304,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.7.2 =
+* Updated plugin branding with UX enhancements
+
 = 1.7.1 =
 * Ux enhancement with small bug fixes
 
