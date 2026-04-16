@@ -1,6 +1,122 @@
 jQuery(document).ready(function ($) {
     // Configuration: Get max concurrency from WordPress settings (can be changed in AI Settings page)
     const MAX_CONCURRENCY = parseInt(altmImageProcessing.maxConcurrency) || 5;
+    const IS_WPML_ACTIVE = !!altmImageProcessing.isWpmlActive;
+
+    function getCurrentWpmlLanguage() {
+        const searchParams = new URLSearchParams(window.location.search || '');
+        const queryLanguage = searchParams.get('lang');
+
+        if (queryLanguage) {
+            return queryLanguage;
+        }
+
+        const cookieMatch = document.cookie.match(/(?:^|; )wp-wpml_current_language=([^;]+)/);
+        if (cookieMatch && cookieMatch[1]) {
+            return decodeURIComponent(cookieMatch[1]);
+        }
+
+        return '';
+    }
+
+    function getTableColumnCount() {
+        return IS_WPML_ACTIVE ? 6 : 5;
+    }
+
+    function getLanguageBadgeTheme(languageCode) {
+        const normalizedCode = (languageCode || '').toLowerCase();
+        const baseCode = normalizedCode.split('-')[0];
+
+        const themes = {
+            en: {
+                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                border: '#93c5fd',
+                text: '#1d4ed8',
+                dot: '#dc2626'
+            },
+            fr: {
+                background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)',
+                border: '#bfdbfe',
+                text: '#1d4ed8',
+                dot: '#dc2626'
+            },
+            de: {
+                background: 'linear-gradient(135deg, #fef2f2 0%, #fef3c7 100%)',
+                border: '#fca5a5',
+                text: '#991b1b',
+                dot: '#f59e0b'
+            },
+            es: {
+                background: 'linear-gradient(135deg, #fef2f2 0%, #fef3c7 100%)',
+                border: '#fca5a5',
+                text: '#b45309',
+                dot: '#dc2626'
+            },
+            it: {
+                background: 'linear-gradient(135deg, #ecfdf5 0%, #fee2e2 100%)',
+                border: '#86efac',
+                text: '#166534',
+                dot: '#dc2626'
+            },
+            pt: {
+                background: 'linear-gradient(135deg, #ecfdf5 0%, #fef3c7 100%)',
+                border: '#86efac',
+                text: '#166534',
+                dot: '#f59e0b'
+            },
+            nl: {
+                background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)',
+                border: '#93c5fd',
+                text: '#1e3a8a',
+                dot: '#dc2626'
+            },
+            pl: {
+                background: 'linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%)',
+                border: '#fda4af',
+                text: '#be123c',
+                dot: '#e11d48'
+            },
+            ru: {
+                background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)',
+                border: '#93c5fd',
+                text: '#1d4ed8',
+                dot: '#dc2626'
+            },
+            uk: {
+                background: 'linear-gradient(135deg, #eff6ff 0%, #fef3c7 100%)',
+                border: '#93c5fd',
+                text: '#1d4ed8',
+                dot: '#f59e0b'
+            }
+        };
+
+        return themes[normalizedCode] || themes[baseCode] || {
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+            border: '#cbd5e1',
+            text: '#334155',
+            dot: '#64748b'
+        };
+    }
+
+    function getLanguageCellHtml(image) {
+        if (!IS_WPML_ACTIVE) {
+            return '';
+        }
+
+        const languageLabel = image.wpml_language_label || image.wpml_language_code || 'Unknown';
+        const theme = getLanguageBadgeTheme(image.wpml_language_code);
+        const flagUrl = image.wpml_flag_url || '';
+        const flagHtml = flagUrl
+            ? '<img src="' + flagUrl + '" alt="" style="width: 14px; height: 10px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);" />'
+            : '';
+
+        return '<td class="altm-language-cell">' +
+            '<span style="display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 2px 7px; border: 1px solid ' + theme.border + '; border-radius: 999px; background: ' + theme.background + '; color: ' + theme.text + '; font-size: 10px; font-weight: 600;">' +
+            flagHtml +
+            '<span>' + languageLabel + '</span>' +
+            '</span>' +
+            '</td>';
+    }
 
 
 
@@ -350,7 +466,7 @@ jQuery(document).ready(function ($) {
         // Show placeholder if no images
         if (images.length === 0) {
             let placeholderHtml = getPlaceholderHtml(tab);
-            list.html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' + placeholderHtml + '</td></tr>');
+            list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' + placeholderHtml + '</td></tr>');
             updateSelectionUI(tab);
 
             // Show pagination controls even when no images
@@ -371,6 +487,7 @@ jQuery(document).ready(function ($) {
                 '<td><input type="checkbox" class="select-image" data-id="' + image.ID + '" /></td>' +
                 '<td>' + image.ID + '</td>' +
                 '<td style="padding-right: 20px;"><img src="' + image.image_url + '" style="height: 100px; width: 100px; max-width: 100px; border-radius: 4px; object-fit: cover;" loading="lazy" onerror="this.onerror=null; this.outerHTML=\'<div style=\\\'height: 100px; width: 100px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; color: #666; font-size: 12px;\\\'>Not Available</div>\';" /></td>' +
+                getLanguageCellHtml(image) +
                 '<td class="altm-alt-text-cell" data-alt-text="' + (image.alt_text ? image.alt_text.replace(/"/g, '&quot;') : '') + '" style="padding-left: 20px; padding-right: 20px;">' +
                 '<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + altTextDisplay + '</div>' +
                 '</td>' +
@@ -606,7 +723,7 @@ jQuery(document).ready(function ($) {
             const $list = jQuery(listSelector);
             $list.html(
                 '<tr>' +
-                '<td colspan="5" style="text-align: center; padding: 40px;">' +
+                '<td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<span class="spinner is-active" style="float: none; margin-right: 8px;"></span>' +
                 '<span style="color: #666;">Loading images...</span>' +
                 '</td>' +
@@ -670,7 +787,7 @@ jQuery(document).ready(function ($) {
                         const $list = jQuery(listSelector);
                         $list.html(
                             '<tr>' +
-                            '<td colspan="5" style="text-align: center; padding: 40px;">' +
+                            '<td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                             '<div style="color: #d63638; line-height: 1.6;">' +
                             '<div style="font-size: 48px; margin-bottom: 16px;">⚠️ </div>' +
                             '<h3 style="margin: 0 0 12px 0; color: #d63638;">Error loading images</h3>' +
@@ -692,7 +809,7 @@ jQuery(document).ready(function ($) {
                     const $list = jQuery(listSelector);
                     $list.html(
                         '<tr>' +
-                        '<td colspan="5" style="text-align: center; padding: 40px;">' +
+                        '<td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                         '<div style="color: #d63638; line-height: 1.6;">' +
                         '<div style="font-size: 48px; margin-bottom: 16px;">🚫</div>' +
                         '<h3 style="margin: 0 0 12px 0; color: #d63638;">Connection Error</h3>' +
@@ -821,7 +938,8 @@ jQuery(document).ready(function ($) {
                 const response = await $.post(altmImageProcessing.ajaxUrl, {
                     action: 'altm_generate_alt_text_batch_ajax',
                     attachment_ids: batchAttachmentIds,
-                    nonce: altmImageProcessing.generateAltTextNonce
+                    nonce: altmImageProcessing.generateAltTextNonce,
+                    lang: getCurrentWpmlLanguage()
                 });
 
                 if (response.success && response.data) {
@@ -1183,7 +1301,8 @@ jQuery(document).ready(function ($) {
             action: 'altm_generate_alt_text_ajax',
             attachment_id: attachmentId,
             source: 'image_processing_page',
-            nonce: altmImageProcessing.generateAltTextNonce
+            nonce: altmImageProcessing.generateAltTextNonce,
+            lang: getCurrentWpmlLanguage()
         }, function (response) {
             //console.log('Response received:', response);
 

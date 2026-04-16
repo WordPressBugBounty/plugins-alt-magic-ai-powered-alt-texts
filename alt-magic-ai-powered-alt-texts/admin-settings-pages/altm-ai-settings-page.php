@@ -59,6 +59,7 @@ function alt_magic_render_ai_settings_page() {
         'alt_magic_auto_generate' => get_option('alt_magic_auto_generate', 0),
         'alt_magic_alt_gen_type' => get_option('alt_magic_alt_gen_type', 'default'),
         'alt_magic_language' => get_option('alt_magic_language', 'en'),
+        'alt_magic_wpml_bulk_image_scope' => get_option('alt_magic_wpml_bulk_image_scope', 'current_language'),
         'alt_magic_use_for_title' => get_option('alt_magic_use_for_title', 0),
         'alt_magic_use_for_caption' => get_option('alt_magic_use_for_caption', 0),
         'alt_magic_use_for_description' => get_option('alt_magic_use_for_description', 0),
@@ -86,6 +87,12 @@ function alt_magic_render_ai_settings_page() {
     ];
 
     global $altm_supported_languages; // Make sure the $altm_supported_languages variable is accessible
+    $is_wpml_active = altm_is_wpml_active();
+    $wpml_language = altm_get_wpml_current_language_data();
+    $wpml_language_display = $wpml_language['code'] !== ''
+        ? sprintf('%s (%s)', $wpml_language['label'], $wpml_language['code'])
+        : $wpml_language['label'];
+    $bulk_generation_page_url = admin_url('admin.php?page=alt-magic-bulk-generation');
     
     // For debugging purposes, you can uncomment these lines:
     // echo '<pre>';
@@ -100,6 +107,7 @@ function alt_magic_render_ai_settings_page() {
                 <h2 class="nav-tab-wrapper alt-magic-settings-tabs" role="tablist" aria-label="Alt Magic settings sections">
                     <a href="#" class="nav-tab nav-tab-active" data-target="altm-tab-alt" role="tab" aria-selected="true">Alt Text Settings</a>
                     <a href="#" class="nav-tab" data-target="altm-tab-rename" role="tab" aria-selected="false">Image Rename Settings</a>
+                    <a href="#" class="nav-tab" data-target="altm-tab-wpml" role="tab" aria-selected="false">WPML Settings</a>
                 </h2>
                 <table class="form-table" id="alt-magic-settings-table">
                     <tbody id="altm-tab-alt" class="altm-tab-content" style="display: table-row-group;">
@@ -274,6 +282,59 @@ function alt_magic_render_ai_settings_page() {
                         </td>
                     </tr>
                     </tbody>
+                    <tbody id="altm-tab-wpml" class="altm-tab-content" style="display: none;">
+                    <tr class="setting-row">
+                        <th scope="row">
+                            <div class="setting-title">WPML Active Language</div>
+                            <div class="setting-description">Shows the currently selected WPML language used by Alt Magic during generation</div>
+                        </th>
+                        <td>
+                            <select disabled>
+                                <option value="<?php echo esc_attr($wpml_language['code']); ?>">
+                                    <?php echo esc_html($wpml_language_display); ?>
+                                </option>
+                            </select>
+                            <p class="alt-magic-setting-sub-label">
+                                <?php if ($is_wpml_active) : ?>
+                                    <?php echo esc_html__('This value follows the current WPML language switcher selection. Change it from the WPML menu.', 'alt-magic'); ?>
+                                <?php else : ?>
+                                    <?php echo esc_html__('WPML is not active on this site, so no WPML language is available to display.', 'alt-magic'); ?>
+                                <?php endif; ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr class="setting-row">
+                        <th scope="row">
+                            <div class="setting-title">Bulk Image Language Scope</div>
+                            <div class="setting-description">Choose whether Bulk Alt Generation shows only the active WPML language or all images</div>
+                        </th>
+                        <td>
+                            <select name="alt_magic_wpml_bulk_image_scope" class="alt-magic-setting" <?php disabled(!$is_wpml_active); ?>>
+                                <option value="current_language" <?php selected($options['alt_magic_wpml_bulk_image_scope'], 'current_language'); ?>>Only show images in the active WPML language</option>
+                                <option value="all_images" <?php selected($options['alt_magic_wpml_bulk_image_scope'], 'all_images'); ?>>Show all images regardless of WPML language</option>
+                            </select>
+                            <p class="alt-magic-setting-sub-label">
+                                <?php if ($is_wpml_active) : ?>
+                                    <?php
+                                    printf(
+                                        wp_kses(
+                                            __('This controls which images appear on the <a href="%s">Bulk Alt Generation page</a> of Alt Magic when WPML is active.', 'alt-magic'),
+                                            array(
+                                                'a' => array(
+                                                    'href' => array(),
+                                                ),
+                                            )
+                                        ),
+                                        esc_url($bulk_generation_page_url)
+                                    );
+                                    ?>
+                                <?php else : ?>
+                                    <?php echo esc_html__('Enable WPML to filter Bulk Alt Generation images by language.', 'alt-magic'); ?>
+                                <?php endif; ?>
+                            </p>
+                        </td>
+                    </tr>
+                    </tbody>
                     <tbody id="altm-tab-rename" class="altm-tab-content" style="display: none;">
                         <tr class="setting-row">
                             <th scope="row">
@@ -387,6 +448,7 @@ function alt_magic_sync_settings_with_api() {
         'alt_magic_auto_rename_on_upload' => get_option('alt_magic_auto_rename_on_upload', 0),
         'alt_magic_alt_gen_type' => get_option('alt_magic_alt_gen_type', 'default'),
         'alt_magic_language' => get_option('alt_magic_language', 'en'),
+        'alt_magic_wpml_bulk_image_scope' => get_option('alt_magic_wpml_bulk_image_scope', 'current_language'),
         'alt_magic_use_for_title' => get_option('alt_magic_use_for_title', 0),
         'alt_magic_use_for_caption' => get_option('alt_magic_use_for_caption', 0),
         'alt_magic_use_for_description' => get_option('alt_magic_use_for_description', 0),
@@ -451,6 +513,7 @@ function alt_magic_sanitize_option_value($key, $value) {
         'alt_magic_api_key' => 'string',
         'alt_magic_user_id' => 'string',
         'alt_magic_language' => 'string',
+        'alt_magic_wpml_bulk_image_scope' => 'string',
         'alt_magic_alt_gen_type' => 'string',
         'alt_magic_use_for_title' => 'boolean',
         'alt_magic_use_for_caption' => 'boolean',
@@ -533,6 +596,7 @@ function alt_magic_save_settings() {
         'alt_magic_api_key',
         'alt_magic_user_id',
         'alt_magic_language',
+        'alt_magic_wpml_bulk_image_scope',
         'alt_magic_alt_gen_type',
         'alt_magic_use_for_title',
         'alt_magic_use_for_caption',

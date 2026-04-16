@@ -178,6 +178,7 @@ function alt_magic_add_settings() {
         'alt_magic_api_key' => ['default' => '', 'type' => 'string'],
         'alt_magic_user_id' => ['default' => '', 'type' => 'string'],
         'alt_magic_language' => ['default' => 'en', 'type' => 'string'],
+        'alt_magic_wpml_bulk_image_scope' => ['default' => 'current_language', 'type' => 'string'],
         'alt_magic_use_for_title' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_use_for_caption' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_use_for_description' => ['default' => 0, 'type' => 'boolean'],

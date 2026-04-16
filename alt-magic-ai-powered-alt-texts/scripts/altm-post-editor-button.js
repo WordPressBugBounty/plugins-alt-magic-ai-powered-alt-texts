@@ -1,4 +1,20 @@
 jQuery(document).ready(function ($) {
+    function getCurrentWpmlLanguage() {
+        var searchParams = new URLSearchParams(window.location.search || '');
+        var queryLanguage = searchParams.get('lang');
+
+        if (queryLanguage) {
+            return queryLanguage;
+        }
+
+        var cookieMatch = document.cookie.match(/(?:^|; )wp-wpml_current_language=([^;]+)/);
+        if (cookieMatch && cookieMatch[1]) {
+            return decodeURIComponent(cookieMatch[1]);
+        }
+
+        return '';
+    }
+
     // Authentication error modal functions
     function createAuthErrorModal() {
         if ($('#altm-auth-error-modal').length) {
@@ -220,7 +236,8 @@ jQuery(document).ready(function ($) {
                             action: 'altm_generate_alt_text_ajax',
                             attachment_id: attachmentId,
                             nonce: altm_post_data.generate_alt_text_nonce,
-                            source: 'post_editor_popup'
+                            source: 'post_editor_popup',
+                            lang: getCurrentWpmlLanguage()
                         },
                         success: function (response) {
                             //console.log('Alt Magic: Received AJAX response', response);
@@ -421,7 +438,8 @@ jQuery(document).ready(function ($) {
                         action: 'altm_generate_alt_text_ajax',
                         attachment_id: imgId,
                         nonce: altm_post_data.generate_alt_text_nonce,
-                        source: 'post_editor_block'
+                        source: 'post_editor_block',
+                        lang: getCurrentWpmlLanguage()
                     },
                     success: function (response) {
                         //console.log('Alt Magic: Received AJAX response', response);

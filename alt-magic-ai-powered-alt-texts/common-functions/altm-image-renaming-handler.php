@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
  * @param string $original_filename Original filename of the uploaded file
  * @return string|WP_Error Generated filename or error
  */
-function altm_generate_ai_filename_from_temp_file($temp_file_path, $mime_type, $post_context = null, $original_filename = '', $source = 'missing') {
+function altm_generate_ai_filename_from_temp_file($temp_file_path, $mime_type, $post_context = null, $original_filename = '', $source = 'missing', $attachment_id = 0) {
     altm_log('Generating AI filename from temp file...');
     if (!file_exists($temp_file_path)) {
         altm_log('Temporary file not found.');
@@ -49,6 +49,8 @@ function altm_generate_ai_filename_from_temp_file($temp_file_path, $mime_type, $
 
     altm_log('Post context: ' . print_r($post_context, true));
     
+    $language_resolution = altm_resolve_rename_language($attachment_id, is_array($post_context) ? $post_context : array());
+
     // Prepare request body with optional post context
     $request_body = array(
         'image' => $base64_image,
@@ -62,12 +64,15 @@ function altm_generate_ai_filename_from_temp_file($temp_file_path, $mime_type, $
         'image_name' => !empty($original_filename) ? $original_filename : 'temp_upload_' . uniqid() . '.' . $file_extension,
         'image_id' => 0, // No attachment ID yet during upload
         'product_name' => $post_context['woocommerce_product_name'] ?? '',
-        'language' => get_option('alt_magic_rename_language', 'en'),
+        'language' => $language_resolution['code'],
         'language_type' => 'code',
         'site_url' => get_site_url(),
         'purpose' => 'filename_generation',
         'wp_plugin_source' => $source
     );
+
+    altm_log('Rename language code: ' . $language_resolution['code']);
+    altm_log('Rename language source: ' . $language_resolution['source']);
     
     // Make API request
     $args = array(
@@ -156,10 +161,12 @@ function altm_generate_combined_alt_and_filename($temp_file_path, $mime_type, $p
     }
     $alt_gen_type = get_option('alt_magic_alt_gen_type', 'default');
     $extra_prompt = get_option('alt_magic_extra_prompt', '');
-    $language_code = get_option('alt_magic_language', 'en');
+    $language_resolution = altm_resolve_generation_language();
+    $language_code = $language_resolution['code'];
+    $rename_language_resolution = altm_resolve_rename_language(0, is_array($post_context) ? $post_context : array());
     $rename_use_seo = get_option('alt_magic_rename_use_seo_keywords', null);
     $rename_use_post = get_option('alt_magic_rename_use_post_title', null);
-    $rename_language = get_option('alt_magic_rename_language', 'en');
+    $rename_language = $rename_language_resolution['code'];
     
     $effective_use_seo = isset($rename_use_seo) && $rename_use_seo !== null ? $rename_use_seo : $use_seo_keywords;
     $effective_use_post = isset($rename_use_post) && $rename_use_post !== null ? $rename_use_post : $use_post_title;
@@ -731,7 +738,7 @@ function altm_rename_image_file() {
                 altm_log('Primary post id: ' . $primary_post_id . ' type: ' . $primary_post_type);
 
                 // Get SEO keywords (pass primary post id where possible)
-                $seo_keywords = $use_seo_keywords ? altm_fetch_seo_keywords($primary_post_id) : '';
+                $seo_keywords = $rename_use_seo ? altm_fetch_seo_keywords($primary_post_id) : '';
                 altm_log('SEO keywords: ' . $seo_keywords);
 
                 // If WooCommerce product context is enabled and parent is a product, prefer product_name and clear title
@@ -766,7 +773,7 @@ function altm_rename_image_file() {
         
         altm_log("Post context analysis - Post ID: $primary_post_id, Title: '$parent_post_title', SEO: '$seo_keywords', WooCommerce: '$woocommerce_product_name', Has context: " . ($has_meaningful_context ? 'yes' : 'no') . ", Source: $source");
         
-        $generated = altm_generate_ai_filename_from_temp_file($old_filepath, $mime_type, $post_context, $current_filename, $source);
+        $generated = altm_generate_ai_filename_from_temp_file($old_filepath, $mime_type, $post_context, $current_filename, $source, $attachment_id);
         if (is_wp_error($generated)) {
             altm_log('AI filename generation failed: ' . $generated->get_error_message());
             

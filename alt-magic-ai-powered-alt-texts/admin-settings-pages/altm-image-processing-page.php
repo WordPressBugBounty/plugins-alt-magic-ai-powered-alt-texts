@@ -15,6 +15,22 @@ function altm_render_image_processing_page() {
     $fetch_credits_nonce = wp_create_nonce('altm_fetch_user_credits_nonce');
 
     $is_account_active = get_option('alt_magic_account_active');
+    $is_wpml_active = altm_is_wpml_active();
+    $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
+    $wpml_current_language = altm_get_wpml_current_language_data();
+    $wpml_display_message = '';
+
+    if ($is_wpml_active) {
+        if ($wpml_bulk_image_scope === 'all_images') {
+            $wpml_display_message = __('Displaying images of all languages', 'alt-magic');
+        } else {
+            $language_label = $wpml_current_language['label'] ?: __('selected', 'alt-magic');
+            $wpml_display_message = sprintf(
+                __('Only displaying %s images', 'alt-magic'),
+                $language_label
+            );
+        }
+    }
     
     // Get the AJAX URL using WordPress function to ensure compatibility with all configurations
     $ajax_url = admin_url('admin-ajax.php');
@@ -39,7 +55,8 @@ function altm_render_image_processing_page() {
         'maxConcurrency' => get_option('alt_magic_max_concurrency', 3),
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
-        'userEmail' => get_option('alt_magic_user_id', '')
+        'userEmail' => get_option('alt_magic_user_id', ''),
+        'isWpmlActive' => $is_wpml_active
     ));
     
     ?>
@@ -66,9 +83,17 @@ function altm_render_image_processing_page() {
                     <div>
                         <input type="text" id="search-empty-alt" placeholder="Search by ID or alt text..." style="width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     </div>
-                    <div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                        <?php if ($is_wpml_active) : ?>
+                        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid #cfe0fb; border-radius: 999px; background: #f5f9ff; color: #0b57d0; font-size: 12px; font-weight: 600;">
+                            <span style="display: inline-block; padding: 2px 6px; border-radius: 999px; background: #dbeafe; color: #0b57d0; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;">WPML</span>
+                            <span><?php echo esc_html($wpml_display_message); ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <div>
                         <button class="button button-primary" id="bulk-generate-selected-empty-alt" disabled>Generate for selected images (<span class="selected-count">0</span>)</button>
                         <button class="button button-primary" id="bulk-generate-all-empty-alt">Generate for all (<span class="total-count">0</span>)</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -78,6 +103,9 @@ function altm_render_image_processing_page() {
                         <th width="30"><input type="checkbox" id="select-all-empty-alt" /></th>
                         <th width="80">ID</th>
                         <th width="120" style="padding-right: 20px;">Image</th>
+                        <?php if ($is_wpml_active) : ?>
+                        <th width="140">WPML Language</th>
+                        <?php endif; ?>
                         <th width="350" style="padding-left: 20px; padding-right: 20px;">Alt Text</th>
                         <th width="250">Actions</th>
                     </tr>
@@ -107,9 +135,17 @@ function altm_render_image_processing_page() {
                     <div>
                         <input type="text" id="search-short-alt" placeholder="Search by ID or alt text..." style="width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     </div>
-                    <div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                        <?php if ($is_wpml_active) : ?>
+                        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid #cfe0fb; border-radius: 999px; background: #f5f9ff; color: #0b57d0; font-size: 12px; font-weight: 600;">
+                            <span style="display: inline-block; padding: 2px 6px; border-radius: 999px; background: #dbeafe; color: #0b57d0; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;">WPML</span>
+                            <span><?php echo esc_html($wpml_display_message); ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <div>
                         <button class="button button-primary" id="bulk-generate-selected-short-alt" disabled>Generate for selected images (<span class="selected-count">0</span>)</button>
                         <button class="button button-primary" id="bulk-generate-all-short-alt">Generate for all (<span class="total-count">0</span>)</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -119,6 +155,9 @@ function altm_render_image_processing_page() {
                         <th width="30"><input type="checkbox" id="select-all-short-alt" /></th>
                         <th width="80">ID</th>
                         <th width="120" style="padding-right: 20px;">Image</th>
+                        <?php if ($is_wpml_active) : ?>
+                        <th width="140">WPML Language</th>
+                        <?php endif; ?>
                         <th width="350" style="padding-left: 20px; padding-right: 20px;">Alt Text</th>
                         <th width="250">Actions</th>
                     </tr>
@@ -148,9 +187,17 @@ function altm_render_image_processing_page() {
                     <div>
                         <input type="text" id="search-all-images" placeholder="Search by ID or alt text..." style="width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     </div>
-                    <div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                        <?php if ($is_wpml_active) : ?>
+                        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid #cfe0fb; border-radius: 999px; background: #f5f9ff; color: #0b57d0; font-size: 12px; font-weight: 600;">
+                            <span style="display: inline-block; padding: 2px 6px; border-radius: 999px; background: #dbeafe; color: #0b57d0; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;">WPML</span>
+                            <span><?php echo esc_html($wpml_display_message); ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <div>
                         <button class="button button-primary" id="bulk-generate-selected-all-images" disabled>Generate for selected images (<span class="selected-count">0</span>)</button>
                         <button class="button button-primary" id="bulk-generate-all-all-images">Generate for all (<span class="total-count">0</span>)</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -160,6 +207,9 @@ function altm_render_image_processing_page() {
                         <th width="30"><input type="checkbox" id="select-all-all-images" /></th>
                         <th width="80">ID</th>
                         <th width="120" style="padding-right: 20px;">Image</th>
+                        <?php if ($is_wpml_active) : ?>
+                        <th width="140">WPML Language</th>
+                        <?php endif; ?>
                         <th width="350" style="padding-left: 20px; padding-right: 20px;">Alt Text</th>
                         <th width="250">Actions</th>
                     </tr>

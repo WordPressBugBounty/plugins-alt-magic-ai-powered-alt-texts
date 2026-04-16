@@ -29,8 +29,8 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
     $use_seo_keywords = get_option('alt_magic_use_seo_keywords', 0);
     $use_post_title = get_option('alt_magic_use_post_title', 0);
     $use_woocommerce_product_name = get_option('alt_magic_woocommerce_use_product_name', 0);
-    // Fetch each option individually
-    $language_code = get_option('alt_magic_language');
+    $language_resolution = altm_resolve_generation_language($attachment_id);
+    $language_code = $language_resolution['code'];
     $alt_gen_type = get_option('alt_magic_alt_gen_type', 'default');
     $extra_prompt = get_option('alt_magic_extra_prompt', '');
     //$language_name = isset($altm_supported_languages[$language_code]) ? $altm_supported_languages[$language_code] : 'English';
@@ -39,6 +39,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
     // All logs
     altm_log('User ID: ' . $user_id);
     altm_log('Language code: ' . $language_code);
+    altm_log('Language source: ' . $language_resolution['source']);
     altm_log('use_seo_keywords: ' . $use_seo_keywords);
     altm_log('use_post_title: ' . $use_post_title);
     altm_log('Attachment: ' . print_r($attachment, true));
@@ -172,18 +173,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
 
         if (!empty($alt_text)) {
 
-            $prepend_string = get_option('alt_magic_prepend_string', '');
-            $append_string = get_option('alt_magic_append_string', '');
-
-
-            if (!empty($prepend_string)) {
-                $alt_text = $prepend_string . ' ' . $alt_text;
-            }
-
-            if (!empty($append_string)) {
-                $alt_text = $alt_text . ' ' . $append_string;
-            }
-
+            $alt_text = altm_prepare_alt_text_output($alt_text);
             altm_process_alt_settings($attachment_id, $alt_text);
             return [true, $alt_text];
         } else {
@@ -209,24 +199,45 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
     }
 }
 
+function altm_prepare_alt_text_output($alt_text) {
+    $alt_text = sanitize_text_field($alt_text);
+
+    if ($alt_text === '') {
+        return '';
+    }
+
+    $prepend_string = trim((string) get_option('alt_magic_prepend_string', ''));
+    $append_string = trim((string) get_option('alt_magic_append_string', ''));
+
+    if ($prepend_string !== '') {
+        $alt_text = $prepend_string . ' ' . $alt_text;
+    }
+
+    if ($append_string !== '') {
+        $alt_text = $alt_text . ' ' . $append_string;
+    }
+
+    return trim($alt_text);
+}
+
 // Process alt text settings for post alt generation processing
 function altm_process_alt_settings($attachment_id, $alt_text) {
     // Fetch each option individually
-    //$use_for_title = get_option('alt_magic_use_for_title', 0);
+    $use_for_title = get_option('alt_magic_use_for_title', 0);
     $use_for_caption = get_option('alt_magic_use_for_caption', 0);
     $use_for_description = get_option('alt_magic_use_for_description', 0);
     
 
-    //altm_log('use_for_title: ' . $use_for_title);
+    altm_log('use_for_title: ' . $use_for_title);
     altm_log('use_for_caption: ' . $use_for_caption);
     altm_log('use_for_description: ' . $use_for_description);
 
     $attachment_value_updates = array();
 
-    // if ($use_for_title == 1) {
-    //     altm_log('Updating post title with: ' . $alt_text);
-    //     $attachment_value_updates['post_title'] = $alt_text;
-    // }
+    if ($use_for_title == 1) {
+        altm_log('Updating post title with: ' . $alt_text);
+        $attachment_value_updates['post_title'] = $alt_text;
+    }
     if ($use_for_caption == 1) {
         altm_log('Updating post caption with: ' . $alt_text);
         $attachment_value_updates['post_excerpt'] = $alt_text;
@@ -371,20 +382,8 @@ function altm_generate_alt_text_batch($attachment_ids) {
                         // Only process if this attachment_id was in our current batch
                         if (in_array($attachment_id, $batch_attachment_ids)) {
                             if (isset($result['success']) && ($result['success'] === true || $result['success'] === 1) && isset($result['alt_text']) && !empty($result['alt_text'])) {
-                                $alt_text = sanitize_text_field($result['alt_text']);
-                                
-                                // Apply prepend/append strings
-                                $prepend_string = get_option('alt_magic_prepend_string', '');
-                                $append_string = get_option('alt_magic_append_string', '');
-                                
-                                if (!empty($prepend_string)) {
-                                    $alt_text = $prepend_string . ' ' . $alt_text;
-                                }
-                                
-                                if (!empty($append_string)) {
-                                    $alt_text = $alt_text . ' ' . $append_string;
-                                }
-                                
+                                $alt_text = altm_prepare_alt_text_output($result['alt_text']);
+
                                 // Use altm_process_alt_settings to update alt text, caption, and description
                                 // when the respective flags (alt_magic_use_for_caption, alt_magic_use_for_description) are enabled
                                 altm_process_alt_settings($attachment_id, $alt_text);
@@ -535,7 +534,8 @@ function altm_prepare_batch_image_data($attachment_id) {
     $alt_gen_type = get_option('alt_magic_alt_gen_type', 'default');
     $extra_prompt = get_option('alt_magic_extra_prompt', '');
     $site_visibility = get_option('alt_magic_private_site', 1);
-    $language_code = get_option('alt_magic_language', 'en');
+    $language_resolution = altm_resolve_generation_language($attachment_id);
+    $language_code = $language_resolution['code'];
 
     $image_url = wp_get_attachment_url($attachment_id);
     $image_name = substr(strrchr($image_url, '/'), 1);

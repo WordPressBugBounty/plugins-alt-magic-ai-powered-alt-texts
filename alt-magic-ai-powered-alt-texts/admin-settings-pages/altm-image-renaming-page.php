@@ -16,6 +16,22 @@ function altm_render_image_renaming_page() {
     $save_settings_nonce = wp_create_nonce('alt_magic_save_settings');
 
     $is_account_active = get_option('alt_magic_account_active');
+    $is_wpml_active = altm_is_wpml_active();
+    $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
+    $wpml_current_language = altm_get_wpml_current_language_data();
+    $wpml_display_message = '';
+
+    if ($is_wpml_active) {
+        if ($wpml_bulk_image_scope === 'all_images') {
+            $wpml_display_message = __('Displaying images of all languages', 'alt-magic');
+        } else {
+            $language_label = $wpml_current_language['label'] ?: __('selected', 'alt-magic');
+            $wpml_display_message = sprintf(
+                __('Only displaying %s images', 'alt-magic'),
+                $language_label
+            );
+        }
+    }
     
     // Get the AJAX URL using WordPress function to ensure compatibility with all configurations
     $ajax_url = admin_url('admin-ajax.php');
@@ -40,7 +56,8 @@ function altm_render_image_renaming_page() {
         'saveSettingsNonce' => $save_settings_nonce,
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
-        'userEmail' => get_option('alt_magic_user_id', '')
+        'userEmail' => get_option('alt_magic_user_id', ''),
+        'isWpmlActive' => $is_wpml_active
     ));
     
     ?>
@@ -62,6 +79,15 @@ function altm_render_image_renaming_page() {
         </div>
 
         <div id="tab-content-bad-names" class="tab-content active">
+            <?php if ($is_wpml_active) : ?>
+            <div style="display: flex; align-items: center; justify-content: center; min-height: 320px; padding: 24px;">
+                <div style="max-width: 620px; padding: 22px 24px; border: 1px solid #d9e2ec; border-radius: 12px; background: #ffffff; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); text-align: center;">
+                    <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">WPML Locked</div>
+                    <p style="margin: 14px 0 0; color: #111827; font-size: 15px; font-weight: 600;">Image renaming is not supported when WPML is active.</p>
+                    <p style="margin: 8px 0 0; color: #4b5563; font-size: 13px; line-height: 1.6;">All translated images can share the same physical filename. Renaming one image can break the other WPML image translations that still point to that shared file.</p>
+                </div>
+            </div>
+            <?php else : ?>
             <div style="margin-bottom: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div>
@@ -69,6 +95,12 @@ function altm_render_image_renaming_page() {
                     </div>
                     <div style="flex: 1; display: flex; justify-content: flex-end;">
                         <div style="display: inline-flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid #cfe5fa; background: linear-gradient(135deg, #f1f7ff 0%, #e7f1ff 100%);">
+                            <?php if ($is_wpml_active) : ?>
+                            <div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid #cfe0fb; border-radius: 999px; background: #f5f9ff; color: #0b57d0; font-size: 12px; font-weight: 600;">
+                                <span style="display: inline-block; padding: 2px 6px; border-radius: 999px; background: #dbeafe; color: #0b57d0; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;">WPML</span>
+                                <span><?php echo esc_html($wpml_display_message); ?></span>
+                            </div>
+                            <?php endif; ?>
                             <span style="background: #fef3c7; color: #92400e; border: 1px solid #facc15; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase;">Coming soon</span>
                             <div>
                                 <button class="button button-primary" id="bulk-rename-selected-bad-names" disabled>🔒 Rename selected images (<span class="selected-count">0</span>)</button>
@@ -88,6 +120,9 @@ function altm_render_image_renaming_page() {
                         <th width="30"><input type="checkbox" id="select-all-bad-names" /></th>
                         <th width="80">ID</th>
                         <th width="120" style="padding-right: 20px;">Image</th>
+                        <?php if ($is_wpml_active) : ?>
+                        <th width="140">WPML Language</th>
+                        <?php endif; ?>
                         <th width="350" style="padding-left: 20px; padding-right: 20px;">Filename</th>
                         <th width="200">Actions</th>
                     </tr>
@@ -109,9 +144,19 @@ function altm_render_image_renaming_page() {
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
 
         <div id="tab-content-all-images" class="tab-content">
+            <?php if ($is_wpml_active) : ?>
+            <div style="display: flex; align-items: center; justify-content: center; min-height: 320px; padding: 24px;">
+                <div style="max-width: 620px; padding: 22px 24px; border: 1px solid #d9e2ec; border-radius: 12px; background: #ffffff; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); text-align: center;">
+                    <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">WPML Locked</div>
+                    <p style="margin: 14px 0 0; color: #111827; font-size: 15px; font-weight: 600;">Image renaming is not supported when WPML is active.</p>
+                    <p style="margin: 8px 0 0; color: #4b5563; font-size: 13px; line-height: 1.6;">All translated images can share the same physical filename. Renaming one image can break the other WPML image translations that still point to that shared file.</p>
+                </div>
+            </div>
+            <?php else : ?>
             <div style="margin-bottom: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px; position: relative;">
@@ -135,6 +180,12 @@ function altm_render_image_renaming_page() {
                     </div>
                     <div style="flex: 1; display: flex; justify-content: flex-end;">
                         <div style="display: inline-flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid #cfe5fa; background: linear-gradient(135deg, #f1f7ff 0%, #e7f1ff 100%);">
+                            <?php if ($is_wpml_active) : ?>
+                            <div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid #cfe0fb; border-radius: 999px; background: #f5f9ff; color: #0b57d0; font-size: 12px; font-weight: 600;">
+                                <span style="display: inline-block; padding: 2px 6px; border-radius: 999px; background: #dbeafe; color: #0b57d0; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;">WPML</span>
+                                <span><?php echo esc_html($wpml_display_message); ?></span>
+                            </div>
+                            <?php endif; ?>
                             <span style="background: #fef3c7; color: #92400e; border: 1px solid #facc15; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase;">Coming soon</span>
                             <div>
                                 <button class="button button-primary" id="bulk-rename-selected-all-images" disabled>🔒 Rename selected images (<span class="selected-count">0</span>)</button>
@@ -151,6 +202,9 @@ function altm_render_image_renaming_page() {
                         <th width="30"><input type="checkbox" id="select-all-all-images" /></th>
                         <th width="80">ID</th>
                         <th width="120" style="padding-right: 20px;">Image</th>
+                        <?php if ($is_wpml_active) : ?>
+                        <th width="140">WPML Language</th>
+                        <?php endif; ?>
                         <th width="350" style="padding-left: 20px; padding-right: 20px;">Filename</th>
                         <th width="200">Actions</th>
                     </tr>
@@ -172,6 +226,7 @@ function altm_render_image_renaming_page() {
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
 
     </div>

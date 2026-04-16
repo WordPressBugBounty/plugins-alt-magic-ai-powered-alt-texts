@@ -101,6 +101,7 @@ function altm_handle_add_attachment($attachment_id) {
     if ($auto_generate_alt && !$auto_rename_upload) {
         altm_log('Case 2 post-upload: Generating alt text only');
         altm_generate_alt_text_only($attachment_id);
+        altm_queue_wpml_translation_alt_sync($attachment_id);
         return;
     }
     
@@ -108,6 +109,7 @@ function altm_handle_add_attachment($attachment_id) {
     if ($auto_generate_alt && $auto_rename_upload) {
         altm_log('Case 3 post-upload: Both were enabled, retrieving alt text from transient');
         altm_set_combined_alt_text($attachment_id);
+        altm_queue_wpml_translation_alt_sync($attachment_id);
         return;
     }
 
@@ -116,6 +118,88 @@ function altm_handle_add_attachment($attachment_id) {
         return;
     }
     
+}
+
+function altm_queue_wpml_translation_alt_sync($attachment_id) {
+    if (!$attachment_id || !altm_is_wpml_active()) {
+        return;
+    }
+
+    if (!isset($GLOBALS['altm_wpml_pending_translation_alt_sync']) || !is_array($GLOBALS['altm_wpml_pending_translation_alt_sync'])) {
+        $GLOBALS['altm_wpml_pending_translation_alt_sync'] = array();
+    }
+
+    $GLOBALS['altm_wpml_pending_translation_alt_sync'][] = absint($attachment_id);
+    $GLOBALS['altm_wpml_pending_translation_alt_sync'] = array_values(array_unique(array_filter($GLOBALS['altm_wpml_pending_translation_alt_sync'])));
+}
+
+function altm_should_generate_wpml_translation_alt($original_attachment_id, $translated_attachment_id) {
+    $translated_alt = trim((string) get_post_meta($translated_attachment_id, '_wp_attachment_image_alt', true));
+
+    if ($translated_alt === '') {
+        return true;
+    }
+
+    $original_alt = trim((string) get_post_meta($original_attachment_id, '_wp_attachment_image_alt', true));
+
+    return $original_alt !== '' && $translated_alt === $original_alt;
+}
+
+function altm_generate_wpml_translation_alt_text($original_attachment_id, $translated_attachment_id) {
+    $original_attachment_id = absint($original_attachment_id);
+    $translated_attachment_id = absint($translated_attachment_id);
+
+    if ($original_attachment_id <= 0 || $translated_attachment_id <= 0 || $original_attachment_id === $translated_attachment_id) {
+        return;
+    }
+
+    if (!altm_is_wpml_active() || !get_option('alt_magic_auto_generate', false)) {
+        return;
+    }
+
+    $translated_attachment = get_post($translated_attachment_id);
+
+    if (
+        !$translated_attachment ||
+        $translated_attachment->post_type !== 'attachment' ||
+        strpos((string) $translated_attachment->post_mime_type, 'image/') !== 0
+    ) {
+        return;
+    }
+
+    if (!altm_should_generate_wpml_translation_alt($original_attachment_id, $translated_attachment_id)) {
+        altm_log('Skipping WPML translated attachment alt generation because translated alt already exists for attachment: ' . $translated_attachment_id);
+        return;
+    }
+
+    altm_log('Generating WPML translated attachment alt text for attachment: ' . $translated_attachment_id . ' from original attachment: ' . $original_attachment_id);
+    altm_generate_alt_text($translated_attachment_id, 'auto_upload_wpml_translation');
+}
+
+function altm_process_pending_wpml_translation_alt_sync() {
+    if (
+        empty($GLOBALS['altm_wpml_pending_translation_alt_sync']) ||
+        !is_array($GLOBALS['altm_wpml_pending_translation_alt_sync']) ||
+        !altm_is_wpml_active() ||
+        !get_option('alt_magic_auto_generate', false)
+    ) {
+        return;
+    }
+
+    $queued_attachment_ids = array_values(array_unique(array_filter(array_map('absint', $GLOBALS['altm_wpml_pending_translation_alt_sync']))));
+    $GLOBALS['altm_wpml_pending_translation_alt_sync'] = array();
+
+    foreach ($queued_attachment_ids as $attachment_id) {
+        $translated_attachment_ids = altm_get_wpml_attachment_translations($attachment_id, false);
+
+        foreach ($translated_attachment_ids as $translated_attachment_id) {
+            altm_generate_wpml_translation_alt_text($attachment_id, $translated_attachment_id);
+        }
+    }
+}
+
+function altm_handle_wpml_copied_attachment_postmeta($original_attachment_id, $translated_attachment_id) {
+    altm_generate_wpml_translation_alt_text($original_attachment_id, $translated_attachment_id);
 }
 
 
@@ -310,7 +394,7 @@ function altm_handle_combined_processing($file) {
     
     // Extract filename and alt text from result
     $ai_filename = $result['filename'];
-    $alt_text = $result['alt_text'];
+    $alt_text = altm_prepare_alt_text_output($result['alt_text']);
     
     if (empty($ai_filename)) {
         altm_log('No filename returned from combined API');
@@ -374,12 +458,12 @@ function altm_set_combined_alt_text($attachment_id, $file = null) {
     if ($alt_text) {
         altm_log('Found alt text in transient: ' . $transient_key);
         
-        // Set alt text for the attachment
-        $result = update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
-        
+        // Apply the same output handling used by standard generation.
+        altm_process_alt_settings($attachment_id, $alt_text);
+
         // Verify it was actually saved
         $saved_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
-        altm_log('Update result: ' . ($result ? 'success' : 'failed') . ', Saved alt text: ' . $saved_alt);
+        altm_log('Saved alt text after combined processing: ' . $saved_alt);
         
         // DON'T delete transient yet - let the verification hook at priority 999 do it
         // This allows us to reapply if another plugin overwrites our alt text
@@ -457,6 +541,8 @@ function altm_override_attachment_metadata($attachment_id) {
 // Register hooks
 add_filter('wp_handle_upload_prefilter', 'altm_handle_upload_prefilter', 10, 1);
 add_action('add_attachment', 'altm_handle_add_attachment', 10, 1);
+add_action('shutdown', 'altm_process_pending_wpml_translation_alt_sync', 20);
+add_action('wpml_after_copy_attached_file_postmeta', 'altm_handle_wpml_copied_attachment_postmeta', 10, 2);
 
 // Add a late hook to ensure alt text isn't overwritten by other plugins
 add_action('add_attachment', 'altm_verify_and_reapply_alt_text', 999, 1);
@@ -500,7 +586,7 @@ function altm_verify_and_reapply_alt_text($attachment_id) {
         // If alt text is empty or different from what we set, reapply it
         if ($current_alt !== $pending_alt_text) {
             altm_log('Alt text was overwritten! Current: "' . $current_alt . '" Expected: "' . $pending_alt_text . '" - Reapplying...');
-            update_post_meta($attachment_id, '_wp_attachment_image_alt', $pending_alt_text);
+            altm_process_alt_settings($attachment_id, $pending_alt_text);
             
             // Verify one more time
             $final_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);

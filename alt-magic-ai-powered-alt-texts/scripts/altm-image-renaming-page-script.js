@@ -1,4 +1,70 @@
 jQuery(document).ready(function ($) {
+    const IS_WPML_ACTIVE = !!altmImageRenaming.isWpmlActive;
+
+    function getCurrentWpmlLanguage() {
+        const searchParams = new URLSearchParams(window.location.search || '');
+        const queryLanguage = searchParams.get('lang');
+
+        if (queryLanguage) {
+            return queryLanguage;
+        }
+
+        const cookieMatch = document.cookie.match(/(?:^|; )wp-wpml_current_language=([^;]+)/);
+        if (cookieMatch && cookieMatch[1]) {
+            return decodeURIComponent(cookieMatch[1]);
+        }
+
+        return '';
+    }
+
+    function getTableColumnCount() {
+        return IS_WPML_ACTIVE ? 6 : 5;
+    }
+
+    function getLanguageBadgeTheme(languageCode) {
+        const normalizedCode = (languageCode || '').toLowerCase();
+        const baseCode = normalizedCode.split('-')[0];
+
+        const themes = {
+            en: { background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '#93c5fd', text: '#1d4ed8' },
+            fr: { background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)', border: '#bfdbfe', text: '#1d4ed8' },
+            de: { background: 'linear-gradient(135deg, #fef2f2 0%, #fef3c7 100%)', border: '#fca5a5', text: '#991b1b' },
+            es: { background: 'linear-gradient(135deg, #fef2f2 0%, #fef3c7 100%)', border: '#fca5a5', text: '#b45309' },
+            it: { background: 'linear-gradient(135deg, #ecfdf5 0%, #fee2e2 100%)', border: '#86efac', text: '#166534' },
+            pt: { background: 'linear-gradient(135deg, #ecfdf5 0%, #fef3c7 100%)', border: '#86efac', text: '#166534' },
+            nl: { background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)', border: '#93c5fd', text: '#1e3a8a' },
+            pl: { background: 'linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%)', border: '#fda4af', text: '#be123c' },
+            ru: { background: 'linear-gradient(135deg, #eff6ff 0%, #fee2e2 100%)', border: '#93c5fd', text: '#1d4ed8' },
+            uk: { background: 'linear-gradient(135deg, #eff6ff 0%, #fef3c7 100%)', border: '#93c5fd', text: '#1d4ed8' }
+        };
+
+        return themes[normalizedCode] || themes[baseCode] || {
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+            border: '#cbd5e1',
+            text: '#334155'
+        };
+    }
+
+    function getLanguageCellHtml(image) {
+        if (!IS_WPML_ACTIVE) {
+            return '';
+        }
+
+        const languageLabel = image.wpml_language_label || image.wpml_language_code || 'Unknown';
+        const theme = getLanguageBadgeTheme(image.wpml_language_code);
+        const flagUrl = image.wpml_flag_url || '';
+        const flagHtml = flagUrl
+            ? '<img src="' + flagUrl + '" alt="" style="width: 14px; height: 10px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);" />'
+            : '';
+
+        return '<td class="altm-language-cell">' +
+            '<span style="display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 2px 7px; border: 1px solid ' + theme.border + '; border-radius: 999px; background: ' + theme.background + '; color: ' + theme.text + '; font-size: 10px; font-weight: 600;">' +
+            flagHtml +
+            '<span>' + languageLabel + '</span>' +
+            '</span>' +
+            '</td>';
+    }
+
     // Tab management
     let activeTab = 'bad-names';
 
@@ -384,7 +450,7 @@ jQuery(document).ready(function ($) {
     async function loadAllImages() {
         try {
             const list = $('#all-images-list');
-            list.html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+            list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<span class="spinner is-active" style="float: none; margin-right: 8px;"></span>' +
                 '<span style="color: #666;">Loading images...</span>' +
                 '</td></tr>');
@@ -400,7 +466,8 @@ jQuery(document).ready(function ($) {
                     'per_page': allImagesPageSize,
                     'search': allImagesSearchTerm,
                     'type_filter': allImagesTypeFilter,
-                    'nonce': altmImageRenaming.fetchCreditsNonce
+                    'nonce': altmImageRenaming.fetchCreditsNonce,
+                    'lang': getCurrentWpmlLanguage()
                 })
             });
 
@@ -428,7 +495,7 @@ jQuery(document).ready(function ($) {
                 $('#all-images-count').text(formatNumber(total));
                 $('#bulk-rename-all-all-images .total-count').text(formatNumber(total));
             } else {
-                list.html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+                list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                     '<div style="color: #d63638; line-height: 1.6;">' +
                     '<div style="font-size: 48px; margin-bottom: 16px;">⚠️ </div>' +
                     '<h3 style="margin: 0 0 12px 0; color: #d63638;">Error loading images</h3>' +
@@ -438,7 +505,7 @@ jQuery(document).ready(function ($) {
             }
         } catch (error) {
             console.error('Error loading images:', error);
-            $('#all-images-list').html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+            $('#all-images-list').html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<div style="color: #d63638; line-height: 1.6;">' +
                 '<div style="font-size: 48px; margin-bottom: 16px;">🚫</div>' +
                 '<h3 style="margin: 0 0 12px 0; color: #d63638;">Connection Error</h3>' +
@@ -451,7 +518,7 @@ jQuery(document).ready(function ($) {
     async function loadBadNameImages() {
         try {
             const list = $('#bad-names-list');
-            list.html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+            list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<span class="spinner is-active" style="float: none; margin-right: 8px;"></span>' +
                 '<span style="color: #666;">Loading images with bad names...</span>' +
                 '</td></tr>');
@@ -466,7 +533,8 @@ jQuery(document).ready(function ($) {
                     'page': badNamesCurrentPage,
                     'per_page': badNamesPageSize,
                     'search': badNamesSearchTerm,
-                    'nonce': altmImageRenaming.fetchCreditsNonce
+                    'nonce': altmImageRenaming.fetchCreditsNonce,
+                    'lang': getCurrentWpmlLanguage()
                 })
             });
 
@@ -494,7 +562,7 @@ jQuery(document).ready(function ($) {
                 $('#bad-names-count').text(formatNumber(total));
                 $('#bulk-rename-all-bad-names .total-count').text(formatNumber(total));
             } else {
-                list.html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+                list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                     '<div style="color: #d63638; line-height: 1.6;">' +
                     '<div style="font-size: 48px; margin-bottom: 16px;">⚠️ </div>' +
                     '<h3 style="margin: 0 0 12px 0; color: #d63638;">Error loading bad name images</h3>' +
@@ -504,7 +572,7 @@ jQuery(document).ready(function ($) {
             }
         } catch (error) {
             console.error('Error loading bad name images:', error);
-            $('#bad-names-list').html('<tr><td colspan="5" style="text-align: center; padding: 40px;">' +
+            $('#bad-names-list').html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<div style="color: #d63638; line-height: 1.6;">' +
                 '<div style="font-size: 48px; margin-bottom: 16px;">🚫</div>' +
                 '<h3 style="margin: 0 0 12px 0; color: #d63638;">Connection Error</h3>' +
@@ -519,7 +587,7 @@ jQuery(document).ready(function ($) {
         list.empty();
 
         if (!images || images.length === 0) {
-            let placeholderHtml = '<tr><td colspan="5" style="text-align: center; padding: 40px;">' + getPlaceholderHtml(tabType) + '</td></tr>';
+            let placeholderHtml = '<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' + getPlaceholderHtml(tabType) + '</td></tr>';
             list.append(placeholderHtml);
             return;
         }
@@ -538,6 +606,7 @@ jQuery(document).ready(function ($) {
                 '</div>' +
                 '</div>' +
                 '</td>' +
+                getLanguageCellHtml(image) +
                 '<td class="altm-filename-cell" data-filename="' + escapeHtml(filename) + '" style="padding-left: 20px; padding-right: 20px;">' +
                 '<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 12px; font-family: monospace; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + escapeHtml(filename) + '</div>' +
                 '</td>' +
@@ -791,7 +860,8 @@ jQuery(document).ready(function ($) {
                 body: new URLSearchParams({
                     'action': 'altm_rename_image',
                     'attachment_id': imageId,
-                    'nonce': altmImageRenaming.renameImageNonce
+                    'nonce': altmImageRenaming.renameImageNonce,
+                    'lang': getCurrentWpmlLanguage()
                 })
             });
 
@@ -1228,7 +1298,8 @@ jQuery(document).ready(function ($) {
                 body: new URLSearchParams({
                     'action': 'altm_rename_image',
                     'attachment_id': imageId,
-                    'nonce': altmImageRenaming.renameImageNonce
+                    'nonce': altmImageRenaming.renameImageNonce,
+                    'lang': getCurrentWpmlLanguage()
                 })
             });
 

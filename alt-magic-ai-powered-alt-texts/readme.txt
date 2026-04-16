@@ -3,7 +3,7 @@ Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, woocommerce, bulk alt text
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.7.2
+Stable tag: 1.7.3
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -189,6 +189,10 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.7.3 =
+* WPML is now supported for multi-lingual auto alt text generation
+* WPML is now supported for multi-lingual bulk alt text generation
+
 = 1.7.2 =
 * Updated plugin branding with UX enhancements
 
@@ -304,6 +308,10 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.7.3 =
+* WPML is now supported for multi-lingual auto alt text generation
+* WPML is now supported for multi-lingual bulk alt text generation
+
 = 1.7.2 =
 * Updated plugin branding with UX enhancements
 
