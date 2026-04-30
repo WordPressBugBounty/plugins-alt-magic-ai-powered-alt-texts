@@ -42,6 +42,188 @@ document.addEventListener('DOMContentLoaded', function () {
     var pluginUrl = altMagicSettings.pluginUrl;
     var apiKeyModal = document.getElementById('api-key-modal');
     var apiKeyInput = document.getElementById('alt_magic_api_key');
+    var onboardingModal = document.getElementById('altm-login-onboarding-modal');
+
+    function saveOnboardingSetting(key, value, callback) {
+        fetch(altMagicSettings.settingsAjaxUrl, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: new URLSearchParams({
+                action: 'alt_magic_save_settings',
+                nonce: altMagicSettings.nonceSettings,
+                key: key,
+                value: value
+            })
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Failed to save setting');
+                }
+                return response.json();
+            })
+            .then(function () {
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            })
+            .catch(function (error) {
+                console.error('Alt Magic onboarding save failed:', error);
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            });
+    }
+
+    function initializeOnboardingModal() {
+        if (!onboardingModal) {
+            return {
+                open: function () { },
+                close: function () { }
+            };
+        }
+
+        var currentStep = 1;
+        var body = document.body;
+        var steps = onboardingModal.querySelectorAll('.altm-onboarding-step');
+        var totalSteps = steps.length;
+        var markers = onboardingModal.querySelectorAll('[data-step-marker]');
+        var backButton = onboardingModal.querySelector('.altm-onboarding-back');
+        var nextButton = onboardingModal.querySelector('.altm-onboarding-next');
+        var finishButton = onboardingModal.querySelector('.altm-onboarding-finish');
+        var skipButton = onboardingModal.querySelector('.altm-onboarding-skip');
+        var closeButton = onboardingModal.querySelector('.altm-onboarding-close');
+        var backdrop = onboardingModal.querySelector('.altm-onboarding-modal__backdrop');
+        var settingFields = onboardingModal.querySelectorAll('.altm-onboarding-setting');
+        var statusPill = onboardingModal.querySelector('.altm-onboarding-banner__status-pill');
+
+        function lockScroll() {
+            body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            body.style.overflow = '';
+        }
+
+        function closeOnboarding() {
+            onboardingModal.style.display = 'none';
+            unlockScroll();
+        }
+
+        function openOnboarding() {
+            if (onboardingModal.style.display === 'flex') {
+                lockScroll();
+                return;
+            }
+
+            onboardingModal.style.display = 'flex';
+            lockScroll();
+            updateStep(1);
+        }
+
+        function updateStep(step) {
+            currentStep = step;
+            onboardingModal.dataset.currentStep = String(currentStep);
+
+            steps.forEach(function (pane) {
+                pane.classList.toggle('is-active', parseInt(pane.getAttribute('data-step'), 10) === currentStep);
+            });
+
+            markers.forEach(function (marker) {
+                var markerStep = parseInt(marker.getAttribute('data-step-marker'), 10);
+                marker.classList.toggle('is-active', markerStep === currentStep);
+                marker.classList.toggle('is-complete', markerStep < currentStep);
+            });
+
+            if (backButton) {
+                backButton.disabled = currentStep === 1;
+            }
+
+            if (nextButton) {
+                nextButton.hidden = currentStep === totalSteps;
+            }
+
+            if (finishButton) {
+                finishButton.hidden = currentStep !== totalSteps;
+            }
+        }
+
+        if (backButton) {
+            backButton.addEventListener('click', function () {
+                if (currentStep > 1) {
+                    updateStep(currentStep - 1);
+                }
+            });
+        }
+
+        if (nextButton) {
+            nextButton.addEventListener('click', function () {
+                if (currentStep < totalSteps) {
+                    updateStep(currentStep + 1);
+                }
+            });
+        }
+
+        if (finishButton) {
+            finishButton.addEventListener('click', function () {
+                saveOnboardingSetting('alt_magic_onboarding_done', 1, function () {
+                    if (statusPill) {
+                        statusPill.textContent = 'Completed';
+                        statusPill.classList.remove('is-pending');
+                        statusPill.classList.add('is-complete');
+                    }
+                    onboardingModal.dataset.onboardingDone = '1';
+                    onboardingModal.dataset.shouldAutoShow = '0';
+                    closeOnboarding();
+                });
+            });
+        }
+
+        if (skipButton) {
+            skipButton.addEventListener('click', function () {
+                closeOnboarding();
+            });
+        }
+
+        if (closeButton) {
+            closeButton.addEventListener('click', function () {
+                closeOnboarding();
+            });
+        }
+
+        if (backdrop) {
+            backdrop.addEventListener('click', function () {
+                closeOnboarding();
+            });
+        }
+
+        settingFields.forEach(function (field) {
+            field.addEventListener('change', function () {
+                var key = this.getAttribute('data-setting-key');
+                saveOnboardingSetting(key, this.value);
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && onboardingModal.style.display !== 'none') {
+                closeOnboarding();
+            }
+        });
+
+        updateStep(1);
+
+        if (onboardingModal.dataset.shouldAutoShow === '1') {
+            openOnboarding();
+        }
+
+        return {
+            open: openOnboarding,
+            close: closeOnboarding
+        };
+    }
+
+    var onboardingController = initializeOnboardingModal();
 
     // Function to show modal
     function showApiKeyModal() {
@@ -297,6 +479,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Display user details in dashboard
                         displayUserDetails(response.data.user_details, true);
+                        if (onboardingModal && onboardingModal.dataset.onboardingDone !== '1') {
+                            onboardingController.open();
+                        }
 
                     } else {
                         var errorMessage = 'Registration failed. Please try again.';
@@ -506,6 +691,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Close the modal after successful verification
                     hideApiKeyModal();
+                    if (onboardingModal && onboardingModal.dataset.onboardingDone !== '1') {
+                        onboardingController.open();
+                    }
                 } else {
                     // Hide loader on error
                     var verificationLoader = document.getElementById('api-key-verification-loader');

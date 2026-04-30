@@ -38,18 +38,180 @@ function alt_magic_render_settings_page() {
         'nonceRemove' => wp_create_nonce('alt_magic_remove_api_key_nonce'),
         'nonceVerify' => wp_create_nonce('alt_magic_verify_api_key_nonce'),
         'nonceWpRegister' => wp_create_nonce('alt_magic_wp_auto_register_nonce'),
+        'nonceSettings' => wp_create_nonce('alt_magic_save_settings'),
+        'settingsAjaxUrl' => admin_url('admin-ajax.php'),
         'apiBaseUrl' => ALT_MAGIC_API_BASE_URL,
         'userEmail' => $user_email,
     ));
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.3';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.4';
+    $alt_text_language = get_option('alt_magic_language', 'en');
+    $rename_language = get_option('alt_magic_rename_language', 'en');
+    $onboarding_done = get_option('alt_magic_onboarding_done', 0);
+    $should_auto_show_onboarding = !empty($api_key) && empty($onboarding_done);
+    $is_wpml_active = function_exists('altm_is_wpml_active') && altm_is_wpml_active();
+    $logo_url = esc_url(plugin_dir_url(__FILE__) . '../assets/main-logo-big.svg');
+    $comparison_image_url = esc_url(plugin_dir_url(__FILE__) . '../assets/onboarding-comparison-table-reference.png');
+    global $altm_supported_languages;
+    $altm_inline_onboarding_icon = static function ($relative_path, $class = '') {
+        $icon_path = plugin_dir_path(__FILE__) . '../assets/' . ltrim($relative_path, '/');
+
+        if (!file_exists($icon_path)) {
+            return '';
+        }
+
+        $svg = file_get_contents($icon_path);
+
+        if ($svg === false) {
+            return '';
+        }
+
+        $svg = str_replace(array('#0F172A', '#0f172a'), 'currentColor', $svg);
+        $attributes = ' aria-hidden="true" focusable="false"';
+
+        if (!empty($class)) {
+            $attributes .= ' class="' . esc_attr($class) . '"';
+        }
+
+        return preg_replace('/<svg\b/', '<svg' . $attributes, $svg, 1);
+    };
 
     ?>
     <div class="wrap">
         <h1>Account Settings</h1>
         <div class="alt-magic-dashboard-container">
+            <div id="altm-login-onboarding-modal" class="altm-onboarding-modal" data-onboarding-done="<?php echo esc_attr($onboarding_done); ?>" data-should-auto-show="<?php echo esc_attr($should_auto_show_onboarding ? '1' : '0'); ?>" role="dialog" aria-modal="true" aria-labelledby="altm-login-onboarding-title" style="display: none;">
+                <div class="altm-onboarding-modal__backdrop"></div>
+                <section class="altm-onboarding-banner altm-onboarding-banner--wizard">
+                    <div class="altm-onboarding-banner__glow altm-onboarding-banner__glow--left"></div>
+                    <div class="altm-onboarding-banner__glow altm-onboarding-banner__glow--right"></div>
+                    <button type="button" class="altm-onboarding-close" aria-label="Close onboarding">×</button>
+                    <div class="altm-onboarding-shell">
+                        <aside class="altm-onboarding-sidebar">
+                            <div class="altm-onboarding-sidebar__brand">
+                                <img src="<?php echo $logo_url; ?>" alt="Alt Magic" class="altm-onboarding-sidebar__logo" />
+                                <div>
+                                    <span class="altm-onboarding-banner__eyebrow">Alt Magic setup</span>
+                                    <h2 class="altm-onboarding-sidebar__title">A quick setup before you start.</h2>
+                                    <p class="altm-onboarding-sidebar__subtitle">Four short steps to set your defaults and get Alt Magic ready.</p>
+                                </div>
+                            </div>
+                            <div class="altm-onboarding-banner__status altm-onboarding-banner__status--sidebar">
+                                <span class="altm-onboarding-banner__status-label">Setup status</span>
+                                <span class="altm-onboarding-banner__status-pill <?php echo !empty($onboarding_done) ? 'is-complete' : 'is-pending'; ?>">
+                                    <?php echo !empty($onboarding_done) ? 'Completed earlier' : 'Not completed'; ?>
+                                </span>
+                            </div>
+                            <div class="altm-onboarding-stepper" aria-label="Onboarding progress">
+                                <span class="altm-onboarding-stepper__item is-active" data-step-marker="1">Choose languages</span>
+                                <span class="altm-onboarding-stepper__item" data-step-marker="2">Free credits</span>
+                                <span class="altm-onboarding-stepper__item" data-step-marker="3">Why Alt Magic</span>
+                            </div>
+                            <div class="altm-onboarding-sidebar__meta">
+                                <p>Your choices save right away. You can update them later in settings.</p>
+                            </div>
+                        </aside>
+
+                        <div class="altm-onboarding-main">
+                            <div class="altm-onboarding-step is-active" data-step="1">
+                                <div class="altm-onboarding-step__content">
+                                    <div class="altm-onboarding-step__icon" aria-hidden="true">
+                                        <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-outline/language.svg', 'altm-onboarding-step__icon-svg'); ?>
+                                    </div>
+                                    <h2 class="altm-onboarding-banner__title" id="altm-login-onboarding-title">Choose your languages</h2>
+                                    <p class="altm-onboarding-banner__subtitle">Select the language for alt text generation and the language for image names. You can change both anytime in settings.</p>
+                                    <div class="altm-onboarding-select-card">
+                                        <label class="altm-onboarding-field" for="altm-onboarding-alt-language">
+                                            <span class="altm-onboarding-field__label">Alt text generation language</span>
+                                            <select id="altm-onboarding-alt-language" class="altm-onboarding-setting" data-setting-key="alt_magic_language">
+                                                <?php foreach ($altm_supported_languages as $code => $language) : ?>
+                                                    <option value="<?php echo esc_attr($code); ?>" <?php selected($alt_text_language, $code); ?>><?php echo esc_html($language); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                        <label class="altm-onboarding-field" for="altm-onboarding-rename-language">
+                                            <span class="altm-onboarding-field__label">Image name generation language</span>
+                                            <select id="altm-onboarding-rename-language" class="altm-onboarding-setting" data-setting-key="alt_magic_rename_language">
+                                                <?php foreach ($altm_supported_languages as $code => $language) : ?>
+                                                    <option value="<?php echo esc_attr($code); ?>" <?php selected($rename_language, $code); ?>><?php echo esc_html($language); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                        <?php if ($is_wpml_active) : ?>
+                                            <div class="altm-onboarding-wpml-note">
+                                                <span class="altm-onboarding-wpml-note__chip">WPML detected</span>
+                                                <p class="altm-onboarding-field__hint altm-onboarding-field__hint--wpml">Alt Magic supports WPML. The language selected in WPML will be used for alt text generation.</p>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="altm-onboarding-step" data-step="2">
+                                <div class="altm-onboarding-step__content">
+                                    <div class="altm-onboarding-step__icon altm-onboarding-step__icon--success" aria-hidden="true">
+                                        <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-outline/gift-top.svg', 'altm-onboarding-step__icon-svg'); ?>
+                                        <span class="altm-onboarding-step__icon-sparkle">
+                                            <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-solid/sparkles.svg', 'altm-onboarding-step__icon-sparkle-svg'); ?>
+                                        </span>
+                                    </div>
+                                    <h2 class="altm-onboarding-banner__title">You’ve got 50 free credits</h2>
+                                    <p class="altm-onboarding-banner__subtitle">50 credits were added to your account today.<br>You’ll also get 50 free credits every month automatically.</p>
+                                    <div class="altm-onboarding-select-card altm-onboarding-credit-card">
+                                        <div class="altm-onboarding-credit-row">
+                                            <span class="altm-onboarding-credit-row__meta">
+                                                <span class="altm-onboarding-credit-row__icon">
+                                                    <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-outline/calendar-days.svg', 'altm-onboarding-credit-row__icon-svg'); ?>
+                                                </span>
+                                                <span class="altm-onboarding-credit-row__label">Added today</span>
+                                            </span>
+                                            <span class="altm-onboarding-credit-row__value">50 credits</span>
+                                        </div>
+                                        <div class="altm-onboarding-credit-row">
+                                            <span class="altm-onboarding-credit-row__meta">
+                                                <span class="altm-onboarding-credit-row__icon">
+                                                    <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-outline/arrow-path.svg', 'altm-onboarding-credit-row__icon-svg'); ?>
+                                                </span>
+                                                <span class="altm-onboarding-credit-row__label">Every month</span>
+                                            </span>
+                                            <span class="altm-onboarding-credit-row__value">+50 credits</span>
+                                        </div>
+                                    </div>
+                                    <p class="altm-onboarding-credit-note">
+                                        <span class="altm-onboarding-credit-note__icon">
+                                            <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-solid/check-circle.svg', 'altm-onboarding-credit-note__icon-svg'); ?>
+                                        </span>
+                                        <span>Your credits are ready to use for alt text and image names.</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="altm-onboarding-step" data-step="3">
+                                <div class="altm-onboarding-step__content">
+                                    <div class="altm-onboarding-step__icon" aria-hidden="true">
+                                        <?php echo $altm_inline_onboarding_icon('heroicons/onboarding/24-outline/bolt.svg', 'altm-onboarding-step__icon-svg'); ?>
+                                    </div>
+                                    <h2 class="altm-onboarding-banner__title">Why Alt Magic?</h2>
+                                    <p class="altm-onboarding-banner__subtitle">Faster, smarter and built for real WordPress workflows.</p>
+                                    <div class="altm-onboarding-comparison-media">
+                                        <img src="<?php echo $comparison_image_url; ?>" alt="Alt Magic comparison with generic plugins" class="altm-onboarding-comparison-media__image" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="altm-onboarding-nav">
+                                <div class="altm-onboarding-nav__right">
+                                    <button type="button" class="button button-primary altm-onboarding-next">Next</button>
+                                    <button type="button" class="button button-primary altm-onboarding-finish" hidden>Done</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
             <?php if (empty($api_key)) : ?>
             <!-- Welcome Banner (Only shown when no API key - login needed) -->
             <div class="alt-magic-welcome-banner">

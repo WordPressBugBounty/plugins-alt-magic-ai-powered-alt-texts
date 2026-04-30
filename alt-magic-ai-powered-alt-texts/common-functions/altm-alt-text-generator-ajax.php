@@ -33,7 +33,7 @@ function altm_generate_alt_text_ajax_handler() {
     
     // Sanitize and validate source parameter
     $source = isset($_POST['source']) ? sanitize_text_field(wp_unslash($_POST['source'])) : 'unknown';
-    $allowed_sources = array('image_processing_page', 'image_library_popup', 'bulk_generation', 'media_library', 'upload', 'unknown');
+    $allowed_sources = array('image_processing_page', 'image_library_popup', 'image_details_popup', 'image_details_page', 'bulk_generation', 'media_library', 'upload', 'unknown');
     if (!in_array($source, $allowed_sources, true)) {
         $source = 'unknown';
     }
@@ -71,7 +71,7 @@ function altm_generate_alt_text_ajax_handler() {
         $response_data = array(
             'alt_text' => $result[1],
             'more_options' => array(
-                // 'alt_magic_use_for_title' => get_option('alt_magic_use_for_title'),
+                'alt_magic_use_for_title' => get_option('alt_magic_use_for_title'),
                 'alt_magic_use_for_caption' => get_option('alt_magic_use_for_caption'),
                 'alt_magic_use_for_description' => get_option('alt_magic_use_for_description')
             )

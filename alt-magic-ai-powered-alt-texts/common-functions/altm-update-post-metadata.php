@@ -265,6 +265,12 @@ function altm_update_alt_text_in_all_posts($attachment_id, $alt_text) {
     global $wpdb;
     // Get the option to determine if alt text should be refreshed
     $refresh_alt_text = get_option('alt_magic_refresh_alt_text');
+    $attachment_language_code = '';
+
+    if (function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+        $attachment_language_code = altm_get_wpml_post_language_code($attachment_id);
+        altm_log('Attachment WPML language for post-content alt sync: ' . ($attachment_language_code ?: '(none)'));
+    }
 
     // Get all URLs for this image (original + all sizes) - same approach as altm_get_primary_parent_post
     $image_urls = altm_get_all_image_urls($attachment_id);
@@ -333,6 +339,15 @@ function altm_update_alt_text_in_all_posts($attachment_id, $alt_text) {
     foreach ($posts as $post) {
         altm_log('============================================');
         altm_log('Updating alt text in post: ' . $post->ID);
+
+        if ($attachment_language_code !== '' && function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+            $post_language_code = altm_get_wpml_post_language_code($post->ID);
+
+            if ($post_language_code !== '' && $post_language_code !== $attachment_language_code) {
+                altm_log('Skipping post ' . $post->ID . ' because its WPML language (' . $post_language_code . ') does not match the attachment language (' . $attachment_language_code . ')');
+                continue;
+            }
+        }
         
         // DO NOT use wp_unslash() - work with content as-is from database (like alttext.ai does)
         // This preserves JSON escape sequences like \n and \u002d in Gutenberg blocks

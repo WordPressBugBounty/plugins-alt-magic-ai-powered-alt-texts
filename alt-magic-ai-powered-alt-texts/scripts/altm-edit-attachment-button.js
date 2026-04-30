@@ -230,9 +230,9 @@ jQuery(document).ready(function ($) {
                         var moreOptions = response.data.more_options;
 
                         // Check and update title if option is set
-                        // if (moreOptions && moreOptions.alt_magic_use_for_title == '1') {
-                        //     $('#attachment_title').val(newAltText);
-                        // }
+                        if (moreOptions && moreOptions.alt_magic_use_for_title == '1') {
+                            $('#attachment_title').val(newAltText);
+                        }
 
                         // Check and update caption if option is set
                         if (moreOptions && moreOptions.alt_magic_use_for_caption == '1') {

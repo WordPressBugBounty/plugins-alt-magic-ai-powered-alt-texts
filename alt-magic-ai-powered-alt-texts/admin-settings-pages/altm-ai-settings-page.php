@@ -60,6 +60,7 @@ function alt_magic_render_ai_settings_page() {
         'alt_magic_alt_gen_type' => get_option('alt_magic_alt_gen_type', 'default'),
         'alt_magic_language' => get_option('alt_magic_language', 'en'),
         'alt_magic_wpml_bulk_image_scope' => get_option('alt_magic_wpml_bulk_image_scope', 'current_language'),
+        'alt_magic_onboarding_done' => get_option('alt_magic_onboarding_done', 0),
         'alt_magic_use_for_title' => get_option('alt_magic_use_for_title', 0),
         'alt_magic_use_for_caption' => get_option('alt_magic_use_for_caption', 0),
         'alt_magic_use_for_description' => get_option('alt_magic_use_for_description', 0),
@@ -93,6 +94,8 @@ function alt_magic_render_ai_settings_page() {
         ? sprintf('%s (%s)', $wpml_language['label'], $wpml_language['code'])
         : $wpml_language['label'];
     $bulk_generation_page_url = admin_url('admin.php?page=alt-magic-bulk-generation');
+    $help_page_url = admin_url('admin.php?page=alt-magic-help');
+    $show_onboarding_banner = false; // Onboarding has moved to the account connection screen.
     
     // For debugging purposes, you can uncomment these lines:
     // echo '<pre>';
@@ -102,6 +105,74 @@ function alt_magic_render_ai_settings_page() {
     <div class="wrap">
         <h1>Alt Magic AI Settings</h1>
         <div class="ai-settings-container">
+            <?php if ($show_onboarding_banner) : ?>
+                <div class="altm-onboarding-modal" data-onboarding-done="<?php echo esc_attr($options['alt_magic_onboarding_done']); ?>" role="dialog" aria-modal="true" aria-labelledby="altm-onboarding-title">
+                    <div class="altm-onboarding-modal__backdrop"></div>
+                    <section class="altm-onboarding-banner">
+                        <div class="altm-onboarding-banner__glow altm-onboarding-banner__glow--left"></div>
+                        <div class="altm-onboarding-banner__glow altm-onboarding-banner__glow--right"></div>
+                        <div class="altm-onboarding-banner__header">
+                            <div>
+                                <span class="altm-onboarding-banner__eyebrow">Alt Magic onboarding</span>
+                                <h2 class="altm-onboarding-banner__title" id="altm-onboarding-title">Alt Magic vs Generic Alt Text Plugins</h2>
+                                <p class="altm-onboarding-banner__subtitle">Faster processing, smarter alt text, and better control for modern WordPress workflows.</p>
+                            </div>
+                            <div class="altm-onboarding-banner__status">
+                                <span class="altm-onboarding-banner__status-label">Onboarding status</span>
+                                <span class="altm-onboarding-banner__status-pill <?php echo !empty($options['alt_magic_onboarding_done']) ? 'is-complete' : 'is-pending'; ?>">
+                                    <?php echo !empty($options['alt_magic_onboarding_done']) ? 'Completed' : 'Not completed'; ?>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="altm-onboarding-banner__speed">
+                            <span class="altm-onboarding-banner__speed-label">Processing speed</span>
+                            <div class="altm-onboarding-banner__speed-values">
+                                <span class="altm-onboarding-banner__speed-highlight">12,000+ images/hour</span>
+                                <span class="altm-onboarding-banner__speed-muted">vs around 1,000 images/hour</span>
+                            </div>
+                        </div>
+                        <div class="altm-onboarding-compare" role="table" aria-label="Alt Magic feature comparison">
+                            <div class="altm-onboarding-compare__head" role="rowgroup">
+                                <div class="altm-onboarding-compare__row altm-onboarding-compare__row--head" role="row">
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--feature" role="columnheader">Feature</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--brand" role="columnheader">Alt Magic</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--generic" role="columnheader">Generic plugins</div>
+                                </div>
+                            </div>
+                            <div class="altm-onboarding-compare__body" role="rowgroup">
+                                <div class="altm-onboarding-compare__row" role="row">
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--feature" role="cell">Where alt text gets updated</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--brand" role="cell">Inside pages/posts and image usage context</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--generic" role="cell">Usually only in the media library</div>
+                                </div>
+                                <div class="altm-onboarding-compare__row" role="row">
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--feature" role="cell">Multilingual support</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--brand" role="cell">WPML and multilingual workflows built in</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--generic" role="cell">Often handled through custom prompts with weaker guardrails</div>
+                                </div>
+                                <div class="altm-onboarding-compare__row" role="row">
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--feature" role="cell">Accessibility quality</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--brand" role="cell">Contextual alt text using surrounding page and post content</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--generic" role="cell">Usually generic descriptions without page context</div>
+                                </div>
+                                <div class="altm-onboarding-compare__row" role="row">
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--feature" role="cell">Pricing model</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--brand" role="cell">Predictable one-time credit packs across all image formats</div>
+                                    <div class="altm-onboarding-compare__cell altm-onboarding-compare__cell--generic" role="cell">Often less predictable across APIs, formats, and resolution rules</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="altm-onboarding-banner__footer">
+                            <p class="altm-onboarding-banner__note">Note: Performance and workflow experience may vary by plugin, setup, and site configuration.</p>
+                            <div class="altm-onboarding-banner__actions">
+                                <button type="button" class="button button-primary altm-onboarding-action" data-setting-key="alt_magic_onboarding_done" data-setting-value="1" data-target-tab="altm-tab-alt" data-hide-on-success="1">Start optimizing with Alt Magic</button>
+                                <a href="<?php echo esc_url($help_page_url); ?>" class="button button-secondary altm-onboarding-action" data-setting-key="alt_magic_onboarding_done" data-setting-value="1">See how it works</a>
+                                <button type="button" class="button-link altm-onboarding-dismiss altm-onboarding-action" data-setting-key="alt_magic_onboarding_done" data-setting-value="1" data-hide-on-success="1">Dismiss</button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            <?php endif; ?>
             <form id="alt-magic-settings-form">
                 <?php wp_nonce_field('alt_magic_save_settings', 'alt_magic_nonce'); ?>
                 <h2 class="nav-tab-wrapper alt-magic-settings-tabs" role="tablist" aria-label="Alt Magic settings sections">
@@ -178,7 +249,7 @@ function alt_magic_render_ai_settings_page() {
                             <div class="setting-description">Use generated alt text for other image fields</div>
                         </th>
                         <td>
-                            <!-- <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_use_for_title" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_use_for_title'])); ?>> Use same alt text value for image title</p> -->
+                            <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_use_for_title" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_use_for_title'])); ?>> Use same alt text value for image title</p>
                             <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_use_for_caption" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_use_for_caption'])); ?>> Use same alt text value for image caption</p>
                             <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_use_for_description" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_use_for_description'])); ?>> Use same alt text value for image description</p>
                         </td>
@@ -514,6 +585,7 @@ function alt_magic_sanitize_option_value($key, $value) {
         'alt_magic_user_id' => 'string',
         'alt_magic_language' => 'string',
         'alt_magic_wpml_bulk_image_scope' => 'string',
+        'alt_magic_onboarding_done' => 'boolean',
         'alt_magic_alt_gen_type' => 'string',
         'alt_magic_use_for_title' => 'boolean',
         'alt_magic_use_for_caption' => 'boolean',
@@ -597,6 +669,7 @@ function alt_magic_save_settings() {
         'alt_magic_user_id',
         'alt_magic_language',
         'alt_magic_wpml_bulk_image_scope',
+        'alt_magic_onboarding_done',
         'alt_magic_alt_gen_type',
         'alt_magic_use_for_title',
         'alt_magic_use_for_caption',
@@ -632,6 +705,12 @@ function alt_magic_save_settings() {
 
     // Sanitize value based on the option type
     $value = alt_magic_sanitize_option_value($key, $value);
+
+    $current_value = get_option($key, null);
+    if ((string) $current_value === (string) $value) {
+        wp_send_json_success('Setting updated successfully');
+        return;
+    }
 
     // Update the individual option
     $updated = update_option($key, $value);

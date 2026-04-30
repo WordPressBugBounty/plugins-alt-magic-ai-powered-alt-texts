@@ -280,9 +280,9 @@ jQuery(document).ready(function ($) {
                     updateField('alt-text', altText);
 
                     // Check and update title if option is set
-                    // if (moreOptions.alt_magic_use_for_title == '1') {
-                    //     updateField('title', altText);
-                    // }
+                    if (moreOptions.alt_magic_use_for_title == '1') {
+                        updateField('title', altText);
+                    }
 
                     // Check and update caption if option is set
                     if (moreOptions.alt_magic_use_for_caption == '1') {

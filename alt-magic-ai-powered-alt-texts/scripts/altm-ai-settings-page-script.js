@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     const settings = document.querySelectorAll('.alt-magic-setting');
+    const onboardingModal = document.querySelector('.altm-onboarding-modal');
+    const onboardingBanner = onboardingModal ? onboardingModal.querySelector('.altm-onboarding-banner') : null;
 
     // Tabs toggle (WP nav-tab)
     const tabButtons = document.querySelectorAll('.nav-tab');
@@ -7,24 +9,64 @@ document.addEventListener('DOMContentLoaded', function () {
     tabButtons.forEach(btn => {
         btn.addEventListener('click', function (e) {
             e.preventDefault();
-            const target = this.getAttribute('data-target');
-            tabButtons.forEach(b => {
-                b.classList.remove('nav-tab-active');
-                b.setAttribute('aria-selected', 'false');
-            });
-            this.classList.add('nav-tab-active');
-            this.setAttribute('aria-selected', 'true');
-            tabContents.forEach(group => {
-                if (group.id === target) {
-                    group.style.display = 'table-row-group';
-                } else {
-                    group.style.display = 'none';
+            activateTab(this.getAttribute('data-target'));
+        });
+    });
+
+    const onboardingActions = document.querySelectorAll('.altm-onboarding-action');
+    onboardingActions.forEach(action => {
+        action.addEventListener('click', function (event) {
+            const key = this.getAttribute('data-setting-key');
+            const value = this.getAttribute('data-setting-value');
+            const targetTab = this.getAttribute('data-target-tab');
+            const destination = this.tagName === 'A' ? this.getAttribute('href') : '';
+            const hideOnSuccess = this.getAttribute('data-hide-on-success') === '1';
+
+            if (destination) {
+                event.preventDefault();
+            }
+
+            if (targetTab) {
+                activateTab(targetTab);
+            }
+
+            saveSettingValue(this, key, value, function () {
+                if (onboardingBanner) {
+                    onboardingBanner.dataset.onboardingDone = value;
+
+                    const statusPill = onboardingBanner.querySelector('.altm-onboarding-banner__status-pill');
+                    if (statusPill) {
+                        statusPill.textContent = 'Completed';
+                        statusPill.classList.remove('is-pending');
+                        statusPill.classList.add('is-complete');
+                    }
+                }
+
+                if (hideOnSuccess && onboardingModal) {
+                    onboardingModal.style.display = 'none';
+                }
+
+                if (destination) {
+                    window.location.href = destination;
                 }
             });
         });
     });
 
-
+    function activateTab(target) {
+        tabButtons.forEach(b => {
+            b.classList.remove('nav-tab-active');
+            b.setAttribute('aria-selected', 'false');
+        });
+        tabContents.forEach(group => {
+            group.style.display = group.id === target ? 'table-row-group' : 'none';
+        });
+        const activeButton = document.querySelector('.nav-tab[data-target="' + target + '"]');
+        if (activeButton) {
+            activeButton.classList.add('nav-tab-active');
+            activeButton.setAttribute('aria-selected', 'true');
+        }
+    }
 
     settings.forEach(setting => {
         setting.addEventListener('change', function () {
@@ -95,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    function saveSettingValue(element, key, value) {
+    function saveSettingValue(element, key, value, onSuccess) {
         // Display "Saving..." message
         showMessage('<p style="color: blue; margin-top: 4px;">Saving...</p>', element);
 
@@ -121,6 +163,9 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(data => {
                 if (data.success) {
+                    if (typeof onSuccess === 'function') {
+                        onSuccess(data);
+                    }
                     showMessage('<p style="color: green; margin-top: 4px;">' + data.data + '</p>', element, 2000);
                 } else {
                     showMessage('<p style="color: red; margin-top: 4px;">Error: ' + data.data + '</p>', element, 4000);
