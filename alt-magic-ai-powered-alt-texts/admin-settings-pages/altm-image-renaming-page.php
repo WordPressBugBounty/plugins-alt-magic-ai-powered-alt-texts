@@ -20,6 +20,7 @@ function altm_render_image_renaming_page() {
     $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
     $wpml_current_language = altm_get_wpml_current_language_data();
     $wpml_display_message = '';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.5';
 
     if ($is_wpml_active) {
         if ($wpml_bulk_image_scope === 'all_images') {
@@ -37,10 +38,10 @@ function altm_render_image_renaming_page() {
     $ajax_url = admin_url('admin-ajax.php');
     
     // Enqueue the JavaScript file
-    wp_enqueue_script('altm-image-renaming-script', plugin_dir_url(__FILE__) . '../scripts/altm-image-renaming-page-script.js', array('jquery'), '1.0.0', true);
+    wp_enqueue_script('altm-image-renaming-script', plugin_dir_url(__FILE__) . '../scripts/altm-image-renaming-page-script.js', array('jquery'), $asset_version, true);
     
     // Enqueue the CSS file (reuse the image processing CSS)
-    wp_enqueue_style('altm-image-renaming-style', plugin_dir_url(__FILE__) . '../css/altm-image-processing-page.css', array(), '1.0.0');
+    wp_enqueue_style('altm-image-renaming-style', plugin_dir_url(__FILE__) . '../css/altm-image-processing-page.css', array(), $asset_version);
     
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
@@ -101,10 +102,9 @@ function altm_render_image_renaming_page() {
                                 <span><?php echo esc_html($wpml_display_message); ?></span>
                             </div>
                             <?php endif; ?>
-                            <span style="background: #fef3c7; color: #92400e; border: 1px solid #facc15; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase;">Coming soon</span>
                             <div>
-                                <button class="button button-primary" id="bulk-rename-selected-bad-names" disabled>🔒 Rename selected images (<span class="selected-count">0</span>)</button>
-                                <button class="button button-primary" id="bulk-rename-all-bad-names" disabled>🔒 Rename all (<span class="total-count">0</span>)</button>
+                                <button class="button button-primary" id="bulk-rename-selected-bad-names" disabled>Rename selected images (<span class="selected-count">0</span>)</button>
+                                <button class="button button-primary" id="bulk-rename-all-bad-names" disabled>Rename all (<span class="total-count">0</span>)</button>
                             </div>
                         </div>
                     </div>
@@ -186,10 +186,9 @@ function altm_render_image_renaming_page() {
                                 <span><?php echo esc_html($wpml_display_message); ?></span>
                             </div>
                             <?php endif; ?>
-                            <span style="background: #fef3c7; color: #92400e; border: 1px solid #facc15; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase;">Coming soon</span>
                             <div>
-                                <button class="button button-primary" id="bulk-rename-selected-all-images" disabled>🔒 Rename selected images (<span class="selected-count">0</span>)</button>
-                                <button class="button button-primary" id="bulk-rename-all-all-images" disabled>🔒 Rename all (<span class="total-count">0</span>)</button>
+                                <button class="button button-primary" id="bulk-rename-selected-all-images" disabled>Rename selected images (<span class="selected-count">0</span>)</button>
+                                <button class="button button-primary" id="bulk-rename-all-all-images" disabled>Rename all (<span class="total-count">0</span>)</button>
                             </div>
                         </div>
                     </div>

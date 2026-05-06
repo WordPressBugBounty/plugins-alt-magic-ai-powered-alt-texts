@@ -197,6 +197,10 @@ function alt_magic_add_settings() {
         'alt_magic_rename_use_woocommerce_product_name' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_max_concurrency' => ['default' => 5, 'type' => 'integer'],
         'alt_magic_enable_redirections' => ['default' => 0, 'type' => 'boolean'],
+        'alt_magic_update_posts' => ['default' => 1, 'type' => 'boolean'],
+        'alt_magic_update_excerpts' => ['default' => 1, 'type' => 'boolean'],
+        'alt_magic_update_postmeta' => ['default' => 1, 'type' => 'boolean'],
+        'alt_magic_update_guid' => ['default' => 0, 'type' => 'boolean'],
         'altm_debug_mode' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_extra_prompt' => ['default' => '', 'type' => 'textarea'],
         'alt_magic_rename_language' => ['default' => 'en', 'type' => 'string']

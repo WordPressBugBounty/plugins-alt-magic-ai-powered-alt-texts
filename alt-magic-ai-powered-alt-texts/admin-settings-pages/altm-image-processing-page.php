@@ -13,6 +13,7 @@ function altm_render_image_processing_page() {
     
     $generate_alt_text_nonce = wp_create_nonce('generate_alt_text_nonce');
     $fetch_credits_nonce = wp_create_nonce('altm_fetch_user_credits_nonce');
+    $list_images_nonce = wp_create_nonce('altm_image_processing_list_nonce');
 
     $is_account_active = get_option('alt_magic_account_active');
     $is_wpml_active = altm_is_wpml_active();
@@ -32,14 +33,36 @@ function altm_render_image_processing_page() {
         }
     }
     
-    // Get the AJAX URL using WordPress function to ensure compatibility with all configurations
-    $ajax_url = admin_url('admin-ajax.php');
+    // Use a relative AJAX path so the bulk page works even when local tooling proxies
+    // the admin through a different origin/port (for example Local's :10003 host).
+    $ajax_url = wp_parse_url(admin_url('admin-ajax.php'), PHP_URL_PATH);
     
+    $script_path = plugin_dir_path(__FILE__) . '../scripts/altm-image-processing-page-script.js';
+    $style_path  = plugin_dir_path(__FILE__) . '../css/altm-image-processing-page.css';
+    $use_filemtime_version = defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local';
+    $script_version = $use_filemtime_version
+        ? filemtime($script_path)
+        : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($script_path));
+    $style_version = $use_filemtime_version
+        ? filemtime($style_path)
+        : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($style_path));
+
     // Enqueue the JavaScript file
-    wp_enqueue_script('altm-image-processing-script', plugin_dir_url(__FILE__) . '../scripts/altm-image-processing-page-script.js', array('jquery'), '1.0.0', true);
+    wp_enqueue_script(
+        'altm-image-processing-script',
+        plugin_dir_url(__FILE__) . '../scripts/altm-image-processing-page-script.js',
+        array('jquery'),
+        $script_version,
+        true
+    );
     
     // Enqueue the CSS file
-    wp_enqueue_style('altm-image-processing-style', plugin_dir_url(__FILE__) . '../css/altm-image-processing-page.css', array(), '1.0.0');
+    wp_enqueue_style(
+        'altm-image-processing-style',
+        plugin_dir_url(__FILE__) . '../css/altm-image-processing-page.css',
+        array(),
+        $style_version
+    );
     
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
@@ -52,6 +75,7 @@ function altm_render_image_processing_page() {
         'ajaxUrl' => $ajax_url,
         'fetchCreditsNonce' => $fetch_credits_nonce,
         'generateAltTextNonce' => $generate_alt_text_nonce,
+        'listImagesNonce' => $list_images_nonce,
         'maxConcurrency' => get_option('alt_magic_max_concurrency', 3),
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
@@ -122,8 +146,7 @@ function altm_render_image_processing_page() {
                             <option value="25" selected>25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
-                                    <option value="500">500</option>
-                                    <option value="all">All images</option>
+                            <option value="500">500</option>
                         </select>
                     </div>
                 </div>
@@ -174,8 +197,7 @@ function altm_render_image_processing_page() {
                             <option value="25" selected>25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
-                                    <option value="500">500</option>
-                                    <option value="all">All images</option>
+                            <option value="500">500</option>
                         </select>
                     </div>
                 </div>
@@ -226,8 +248,7 @@ function altm_render_image_processing_page() {
                             <option value="25" selected>25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
-                                    <option value="500">500</option>
-                                    <option value="all">All images</option>
+                            <option value="500">500</option>
                         </select>
                     </div>
                 </div>

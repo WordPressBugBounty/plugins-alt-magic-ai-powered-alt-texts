@@ -76,6 +76,24 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
+    function trackOnboardingProgress(payload) {
+        return fetch(altMagicSettings.settingsAjaxUrl, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: new URLSearchParams({
+                action: 'altm_track_onboarding_progress',
+                nonce: altMagicSettings.nonceSettings,
+                completed_steps: payload.completedSteps,
+                total_steps: payload.totalSteps,
+                completed: payload.completed ? '1' : '0'
+            })
+        }).catch(function (error) {
+            console.error('Alt Magic onboarding tracking failed:', error);
+        });
+    }
+
     function initializeOnboardingModal() {
         if (!onboardingModal) {
             return {
@@ -85,6 +103,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         var currentStep = 1;
+        var maxReachedStep = 1;
+        var lastTrackedSignature = '';
         var body = document.body;
         var steps = onboardingModal.querySelectorAll('.altm-onboarding-step');
         var totalSteps = steps.length;
@@ -111,6 +131,23 @@ document.addEventListener('DOMContentLoaded', function () {
             unlockScroll();
         }
 
+        function trackCurrentOnboardingState(completed) {
+            var completedSteps = Math.max(currentStep, maxReachedStep);
+            var signature = [completedSteps, totalSteps, completed ? 1 : 0].join(':');
+
+            if (signature === lastTrackedSignature) {
+                return;
+            }
+
+            lastTrackedSignature = signature;
+
+            trackOnboardingProgress({
+                completedSteps: completedSteps,
+                totalSteps: totalSteps,
+                completed: completed
+            });
+        }
+
         function openOnboarding() {
             if (onboardingModal.style.display === 'flex') {
                 lockScroll();
@@ -124,6 +161,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         function updateStep(step) {
             currentStep = step;
+            maxReachedStep = Math.max(maxReachedStep, currentStep);
             onboardingModal.dataset.currentStep = String(currentStep);
 
             steps.forEach(function (pane) {
@@ -168,6 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (finishButton) {
             finishButton.addEventListener('click', function () {
                 saveOnboardingSetting('alt_magic_onboarding_done', 1, function () {
+                    trackCurrentOnboardingState(true);
                     if (statusPill) {
                         statusPill.textContent = 'Completed';
                         statusPill.classList.remove('is-pending');
@@ -182,18 +221,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (skipButton) {
             skipButton.addEventListener('click', function () {
+                trackCurrentOnboardingState(false);
                 closeOnboarding();
             });
         }
 
         if (closeButton) {
             closeButton.addEventListener('click', function () {
+                if (onboardingModal.dataset.onboardingDone !== '1') {
+                    trackCurrentOnboardingState(false);
+                }
                 closeOnboarding();
             });
         }
 
         if (backdrop) {
             backdrop.addEventListener('click', function () {
+                if (onboardingModal.dataset.onboardingDone !== '1') {
+                    trackCurrentOnboardingState(false);
+                }
                 closeOnboarding();
             });
         }
@@ -207,6 +253,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && onboardingModal.style.display !== 'none') {
+                if (onboardingModal.dataset.onboardingDone !== '1') {
+                    trackCurrentOnboardingState(false);
+                }
                 closeOnboarding();
             }
         });

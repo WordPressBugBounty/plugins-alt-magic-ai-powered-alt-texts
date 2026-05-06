@@ -7,7 +7,8 @@ if (!defined('ABSPATH')) {
 
 /**
  * Plugin Events Tracker
- * Sends ping to server for plugin activation, deactivation, installation, and deletion events
+ * Sends ping to server for plugin activation, deactivation, installation, deletion,
+ * and onboarding telemetry events.
  */
 
 // Define the server endpoint for plugin events
@@ -37,13 +38,13 @@ function altm_get_current_user_email() {
 /**
  * Send plugin event ping to server
  * 
- * @param string $event_type The type of event (activated, reactivated, deactivated, installed, deleted)
+ * @param string $event_type The type of event (activated, reactivated, deactivated, installed, deleted, onboarding_progress)
  * @param array $extra_data Optional extra payload fields
  * @return bool True if ping was sent successfully, false otherwise
  */
 function altm_send_plugin_event_ping($event_type, $extra_data = array()) {
     // Validate event type
-    $valid_events = ['activated', 'reactivated', 'deactivated', 'installed', 'deleted'];
+    $valid_events = ['activated', 'reactivated', 'deactivated', 'installed', 'deleted', 'onboarding_progress'];
     if (!in_array($event_type, $valid_events)) {
         return false;
     }
@@ -198,6 +199,90 @@ function altm_handle_plugin_deactivation() {
 function altm_handle_plugin_deletion() {
     altm_send_plugin_event_ping('deleted');
 }
+
+/**
+ * Build bulk-tab image counts for onboarding telemetry.
+ *
+ * @return array
+ */
+function altm_get_onboarding_image_counts() {
+    $counts = array(
+        'empty_alt_images_count' => 0,
+        'short_alt_images_count' => 0,
+        'all_images_count' => 0,
+    );
+
+    if (!function_exists('altm_get_image_processing_total_count')) {
+        return $counts;
+    }
+
+    $counts['empty_alt_images_count'] = altm_get_image_processing_total_count('empty-alt');
+    $counts['short_alt_images_count'] = altm_get_image_processing_total_count('short-alt');
+    $counts['all_images_count'] = altm_get_image_processing_total_count('all-images');
+
+    return $counts;
+}
+
+/**
+ * Track onboarding progress with the current step reach and image-tab counts.
+ *
+ * @return void
+ */
+function altm_track_onboarding_progress() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'alt_magic_save_settings')) {
+        wp_send_json_error(array('message' => 'Invalid nonce.'));
+        return;
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        return;
+    }
+
+    $completed_steps = isset($_POST['completed_steps']) ? absint(wp_unslash($_POST['completed_steps'])) : 0;
+    $total_steps = isset($_POST['total_steps']) ? absint(wp_unslash($_POST['total_steps'])) : 0;
+    $completed = !empty($_POST['completed']) ? 1 : 0;
+
+    if ($total_steps < 1) {
+        $total_steps = 1;
+    }
+
+    if ($completed_steps < 1) {
+        $completed_steps = 1;
+    }
+
+    if ($completed_steps > $total_steps) {
+        $completed_steps = $total_steps;
+    }
+
+    $payload = array(
+        'onboarding_steps_completed' => $completed_steps,
+        'onboarding_total_steps' => $total_steps,
+        'onboarding_completed' => $completed,
+    );
+
+    $payload = array_merge($payload, altm_get_onboarding_image_counts());
+
+    if (function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+        $payload['wpml_active'] = 1;
+        if (function_exists('altm_get_wpml_bulk_image_scope')) {
+            $payload['wpml_bulk_scope'] = altm_get_wpml_bulk_image_scope();
+        }
+        if (function_exists('altm_get_wpml_current_language_data')) {
+            $current_language = altm_get_wpml_current_language_data();
+            if (!empty($current_language['code'])) {
+                $payload['wpml_current_language'] = $current_language['code'];
+            }
+        }
+    } else {
+        $payload['wpml_active'] = 0;
+    }
+
+    altm_send_plugin_event_ping('onboarding_progress', $payload);
+
+    wp_send_json_success(array('message' => 'Onboarding telemetry queued.'));
+}
+add_action('wp_ajax_altm_track_onboarding_progress', 'altm_track_onboarding_progress');
 
 /**
  * Add plugin event tracking hooks

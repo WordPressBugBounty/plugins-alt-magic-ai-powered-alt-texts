@@ -519,6 +519,29 @@ function altm_get_wpml_attachment_language_data($attachment_id) {
     );
 }
 
+function altm_get_wpml_attachment_language_data_for_list($attachment_id, $raw_code = '') {
+    $attachment_id = absint($attachment_id);
+    $raw_code = is_string($raw_code) ? trim($raw_code) : '';
+
+    if ($raw_code === '' && $attachment_id > 0) {
+        $details = altm_get_wpml_post_language_details($attachment_id);
+
+        if (!empty($details['language_code']) && is_string($details['language_code'])) {
+            $raw_code = trim($details['language_code']);
+        }
+    }
+
+    $code = altm_normalize_supported_language_code($raw_code);
+    $label = $code !== '' ? altm_get_supported_language_label($code) : '';
+
+    return array(
+        'code' => $code,
+        'label' => $label,
+        'raw_code' => $raw_code,
+        'flag_url' => altm_get_wpml_flag_url($raw_code !== '' ? $raw_code : $code),
+    );
+}
+
 function altm_get_wpml_attachment_translations($attachment_id, $include_original = false) {
     if (!$attachment_id || !altm_is_wpml_active()) {
         return array();

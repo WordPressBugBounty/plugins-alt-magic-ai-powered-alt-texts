@@ -74,6 +74,7 @@ jQuery(document).ready(function ($) {
     // All Images tab state
     let allImagesCurrentPage = 1;
     let allImagesTotalPages = 1;
+    let allImagesTotalItems = 0;
     let allImagesPageSize = 25;
     let allImagesSearchTerm = '';
     let allImagesTypeFilter = '';
@@ -81,6 +82,7 @@ jQuery(document).ready(function ($) {
     // Bad Names tab state
     let badNamesCurrentPage = 1;
     let badNamesTotalPages = 1;
+    let badNamesTotalItems = 0;
     let badNamesPageSize = 25;
     let badNamesSearchTerm = '';
 
@@ -207,12 +209,8 @@ jQuery(document).ready(function ($) {
         // Checkbox event handlers
         setupCheckboxHandlers();
 
-        // Bulk operation button handlers (temporarily disabled)
+        // Bulk operation button handlers
         setupBulkOperationHandlers();
-        // Keep bulk buttons disabled without per-button notices
-        $('#bulk-rename-selected-all-images, #bulk-rename-selected-bad-names, #bulk-rename-all-all-images, #bulk-rename-all-bad-names')
-            .prop('disabled', true)
-            .off('click').on('click', function (e) { e.preventDefault(); return false; });
 
         // Modal handlers
         setupModalHandlers();
@@ -492,8 +490,10 @@ jQuery(document).ready(function ($) {
 
                 displayImages(images, '#all-images-list');
                 updateAllImagesPagination(total, pages);
+                allImagesTotalItems = total;
                 $('#all-images-count').text(formatNumber(total));
                 $('#bulk-rename-all-all-images .total-count').text(formatNumber(total));
+                $('#bulk-rename-all-all-images').prop('disabled', total === 0);
             } else {
                 list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                     '<div style="color: #d63638; line-height: 1.6;">' +
@@ -559,8 +559,10 @@ jQuery(document).ready(function ($) {
 
                 displayImages(images, '#bad-names-list', 'bad-names');
                 updateBadNamesPagination(total, pages);
+                badNamesTotalItems = total;
                 $('#bad-names-count').text(formatNumber(total));
                 $('#bulk-rename-all-bad-names .total-count').text(formatNumber(total));
+                $('#bulk-rename-all-bad-names').prop('disabled', total === 0);
             } else {
                 list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                     '<div style="color: #d63638; line-height: 1.6;">' +
@@ -1156,9 +1158,9 @@ jQuery(document).ready(function ($) {
         const totalCheckboxes = $(listSelector + ' .image-checkbox').length;
         const checkedCheckboxes = $(listSelector + ' .image-checkbox:checked').length;
 
-        // Update selected count but keep feature disabled
+        // Update selected count
         $(bulkButtonSelector + ' .selected-count').text(checkedCheckboxes);
-        $(bulkButtonSelector).prop('disabled', true);
+        $(bulkButtonSelector).prop('disabled', checkedCheckboxes === 0);
 
         // Update select all checkbox
         if (totalCheckboxes === 0) {
@@ -1215,25 +1217,21 @@ jQuery(document).ready(function ($) {
             return;
         }
 
-        let imagesToProcess = [];
-
         if (imageIds === 'all') {
-            // Get all images from the current tab
-            const listSelector = tabType === 'bad-names' ? '#bad-names-list' : '#all-images-list';
-            $(listSelector + ' .image-checkbox').each(function () {
-                imagesToProcess.push(parseInt($(this).data('id')));
-            });
-        } else {
-            imagesToProcess = imageIds;
-        }
+            const total = tabType === 'bad-names' ? badNamesTotalItems : allImagesTotalItems;
+            if (total === 0) {
+                return;
+            }
 
-        if (imagesToProcess.length === 0) {
-            // This shouldn't happen due to button states, but just in case
+            processBulkRenameAll(tabType, total);
             return;
         }
 
-        // Start bulk processing directly
-        processBulkRename(imagesToProcess);
+        if (!imageIds || imageIds.length === 0) {
+            return;
+        }
+
+        processBulkRenameQueue(imageIds, imageIds.length);
     }
 
     let bulkProcessing = {
@@ -1246,47 +1244,109 @@ jQuery(document).ready(function ($) {
         failedImages: []
     };
 
-    async function processBulkRename(imageIds) {
-        // Reset processing state
+    function resetBulkProcessing(total) {
         bulkProcessing = {
             active: true,
             cancelled: false,
             processed: 0,
             successful: 0,
             failed: 0,
-            total: imageIds.length,
+            total: total,
             failedImages: []
         };
 
-        // Show modal
         showBulkProcessingModal();
         updateBulkProgress();
+    }
 
-        // Process images with limited concurrency
-        const maxConcurrency = 3;
-        const chunks = [];
-        for (let i = 0; i < imageIds.length; i += maxConcurrency) {
-            chunks.push(imageIds.slice(i, i + maxConcurrency));
-        }
-
-        for (const chunk of chunks) {
-            if (bulkProcessing.cancelled) break;
-
-            const promises = chunk.map(imageId => processImageRename(imageId));
-            await Promise.all(promises);
-        }
-
-        // Processing complete
+    function finalizeBulkProcessing() {
         bulkProcessing.active = false;
         updateBulkProgress();
-
-        // Change button text to "Close" when processing is complete
         $('#cancel-processing').text('Close');
 
-        // Show completion message
         if (!bulkProcessing.cancelled) {
             $('#completion-message').show();
         }
+    }
+
+    async function processBulkRenameQueue(imageIds, total) {
+        // Reset processing state
+        resetBulkProcessing(total);
+
+        for (const imageId of imageIds) {
+            if (bulkProcessing.cancelled) {
+                break;
+            }
+
+            await processImageRename(imageId);
+        }
+
+        finalizeBulkProcessing();
+    }
+
+    async function fetchBulkRenameChunkIds(tabType, cursorId) {
+        const response = await fetch(altmImageRenaming.ajaxUrl, {
+            method: 'POST',
+            body: new URLSearchParams({
+                'action': 'altm_get_bulk_rename_chunk_ids',
+                'tab': tabType,
+                'search': tabType === 'bad-names' ? badNamesSearchTerm : allImagesSearchTerm,
+                'type_filter': tabType === 'all-images' ? allImagesTypeFilter : '',
+                'cursor_id': cursorId,
+                'chunk_size': 25,
+                'nonce': altmImageRenaming.fetchCreditsNonce
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.data && data.data.message ? data.data.message : 'Unable to fetch rename batch.');
+        }
+
+        return data.data || { ids: [], next_cursor: 0, has_more: false };
+    }
+
+    async function processBulkRenameAll(tabType, total) {
+        resetBulkProcessing(total);
+
+        let cursorId = 0;
+
+        try {
+            while (!bulkProcessing.cancelled) {
+                const chunk = await fetchBulkRenameChunkIds(tabType, cursorId);
+                const chunkIds = Array.isArray(chunk.ids) ? chunk.ids : [];
+
+                if (chunkIds.length === 0) {
+                    break;
+                }
+
+                for (const imageId of chunkIds) {
+                    if (bulkProcessing.cancelled) {
+                        break;
+                    }
+
+                    await processImageRename(imageId);
+                }
+
+                if (!chunk.has_more || !chunk.next_cursor) {
+                    break;
+                }
+
+                cursorId = chunk.next_cursor;
+            }
+        } catch (error) {
+            bulkProcessing.cancelled = true;
+            bulkProcessing.active = false;
+            bulkProcessing.failed++;
+            bulkProcessing.failedImages.push({
+                id: 'Batch',
+                error: error.message || 'Unable to fetch the next batch of images.'
+            });
+            bulkProcessing.processed = Math.min(bulkProcessing.processed, bulkProcessing.total);
+        }
+
+        finalizeBulkProcessing();
     }
 
     async function processImageRename(imageId) {
@@ -1372,11 +1432,15 @@ jQuery(document).ready(function ($) {
         if (failedImages.length > 0) {
             $('#no-failed-images').hide();
             failedImages.forEach(item => {
-                if ($(`#failed-row-${item.id}`).length === 0) {
-                    const editUrl = `/wp-admin/post.php?post=${item.id}&action=edit`;
-                    const row = `<tr id="failed-row-${item.id}">
+                const rowId = String(item.id).replace(/[^a-zA-Z0-9_-]/g, '-');
+                if ($(`#failed-row-${rowId}`).length === 0) {
+                    const isNumericId = /^\d+$/.test(String(item.id));
+                    const editLink = isNumericId
+                        ? `<a href="/wp-admin/post.php?post=${item.id}&action=edit" target="_blank" style="color: #2271b1; text-decoration: none;">Edit</a>`
+                        : '<span style="color: #666;">N/A</span>';
+                    const row = `<tr id="failed-row-${rowId}">
                         <td style="padding: 6px 8px;">${item.id}</td>
-                        <td style="padding: 6px 8px;"><a href="${editUrl}" target="_blank" style="color: #2271b1; text-decoration: none;">Edit</a></td>
+                        <td style="padding: 6px 8px;">${editLink}</td>
                         <td style="padding: 6px 8px; word-break: break-word;">${escapeHtml(item.error)}</td>
                     </tr>`;
                     $('#failed-images-body').append(row);

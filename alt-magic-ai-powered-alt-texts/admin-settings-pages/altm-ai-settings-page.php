@@ -79,11 +79,6 @@ function alt_magic_render_ai_settings_page() {
         'alt_magic_rename_use_seo_keywords' => get_option('alt_magic_rename_use_seo_keywords', 0),
         'alt_magic_rename_use_post_title' => get_option('alt_magic_rename_use_post_title', 0),
         'alt_magic_rename_use_woocommerce_product_name' => get_option('alt_magic_rename_use_woocommerce_product_name', 0),
-        // Advanced URL Update Settings
-        'alt_magic_update_posts' => get_option('alt_magic_update_posts', 1),
-        'alt_magic_update_excerpts' => get_option('alt_magic_update_excerpts', 1),
-        'alt_magic_update_postmeta' => get_option('alt_magic_update_postmeta', 1),
-        'alt_magic_update_guid' => get_option('alt_magic_update_guid', 0),
         'alt_magic_rename_language' => get_option('alt_magic_rename_language', 'en')
     ];
 
@@ -480,20 +475,6 @@ function alt_magic_render_ai_settings_page() {
                                 <p class="alt-magic-setting-sub-label">When enabled, 301 redirections will be created from old image URLs to new ones after renaming. Requires the <a href="https://wordpress.org/plugins/redirection/" target="_blank">Redirection plugin</a> to be installed and active.</p>
                             </td>
                         </tr> -->
-                        <tr class="setting-row">
-                            <th scope="row">
-                                <div class="setting-title">Advanced URL Updates</div>
-                                <div class="setting-description">Control where image URL updates are applied after renaming</div>
-                            </th>
-                            <td>
-                                <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_update_posts" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_update_posts'])); ?>> Update URLs in post content</p>
-                                <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_update_excerpts" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_update_excerpts'])); ?>> Update URLs in post excerpts</p>
-                                <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_update_postmeta" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_update_postmeta'])); ?>> Update URLs in post meta</p>
-                                <!-- <p class="alt-magic-setting-label"><input type="checkbox" name="alt_magic_update_guid" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_update_guid'])); ?>> Update attachment GUID <span style="color:#a00;">(Not recommended)</span></p>
-                                <p class="alt-magic-setting-sub-label">Most sites should keep post content and post meta updates enabled. Excerpts are optional. Updating the GUID can affect external references and is generally discouraged.</p> -->
-                            </td>
-                        </tr>
-                        
                     </tbody>
                 </table>
             </form>
@@ -536,11 +517,6 @@ function alt_magic_sync_settings_with_api() {
         'alt_magic_rename_use_seo_keywords' => get_option('alt_magic_rename_use_seo_keywords', 0),
         'alt_magic_rename_use_post_title' => get_option('alt_magic_rename_use_post_title', 0),
         'alt_magic_rename_use_woocommerce_product_name' => get_option('alt_magic_rename_use_woocommerce_product_name', 0),
-        // Advanced URL Update Settings
-        'alt_magic_update_posts' => get_option('alt_magic_update_posts', 1),
-        'alt_magic_update_excerpts' => get_option('alt_magic_update_excerpts', 0),
-        'alt_magic_update_postmeta' => get_option('alt_magic_update_postmeta', 1),
-        'alt_magic_update_guid' => get_option('alt_magic_update_guid', 0),
         'alt_magic_rename_language' => get_option('alt_magic_rename_language', 'en')
     );
 

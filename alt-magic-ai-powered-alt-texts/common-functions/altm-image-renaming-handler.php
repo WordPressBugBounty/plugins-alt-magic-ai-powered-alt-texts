@@ -292,29 +292,17 @@ function altm_update_image_references($attachment_id, $old_image_urls) {
             altm_log("Processing size: $size");
             
             if ($old_relative_url && $new_relative_url && $old_relative_url !== $new_relative_url) {
-                // Update post content if enabled
-                if (get_option('alt_magic_update_posts', 1)) {
-                    $post_ids = altm_update_post_content($old_relative_url, $new_relative_url);
-                    $updated_post_ids = array_merge($updated_post_ids, $post_ids);
-                } else {
-                    altm_log("Post content updates disabled - skipping");
-                }
+                // Always update post content after image renaming.
+                $post_ids = altm_update_post_content($old_relative_url, $new_relative_url);
+                $updated_post_ids = array_merge($updated_post_ids, $post_ids);
                 
-                // Update post excerpts if enabled
-                if (get_option('alt_magic_update_excerpts', 0)) {
-                    $excerpt_ids = altm_update_post_excerpts($old_relative_url, $new_relative_url);
-                    $updated_excerpt_ids = array_merge($updated_excerpt_ids, $excerpt_ids);
-                } else {
-                    altm_log("Post excerpt updates disabled - skipping");
-                }
+                // Always update post excerpts after image renaming.
+                $excerpt_ids = altm_update_post_excerpts($old_relative_url, $new_relative_url);
+                $updated_excerpt_ids = array_merge($updated_excerpt_ids, $excerpt_ids);
                 
-                // Update post meta if enabled
-                if (get_option('alt_magic_update_postmeta', 1)) {
-                    $meta_ids = altm_update_post_meta($old_relative_url, $new_relative_url);
-                    $updated_meta_ids = array_merge($updated_meta_ids, $meta_ids);
-                } else {
-                    altm_log("Post meta updates disabled - skipping");
-                }
+                // Always update post meta after image renaming.
+                $meta_ids = altm_update_post_meta($old_relative_url, $new_relative_url);
+                $updated_meta_ids = array_merge($updated_meta_ids, $meta_ids);
                 
             } else {
                 altm_log("No URL changes needed for size: $size");
@@ -905,9 +893,11 @@ function altm_rename_image_file() {
     if (wp_attachment_is_image($attachment_id) && !empty($old_metadata['sizes'])) {
         altm_log("Processing thumbnails - Found " . count($old_metadata['sizes']) . " thumbnail sizes");
         $new_metadata = $old_metadata;
+        $renamed_thumbnail_map = array();
         
         foreach ($old_metadata['sizes'] as $size_name => $size_data) {
             $old_thumb_path = trailingslashit($directory) . $size_data['file'];
+            $old_thumb_filename = isset($size_data['file']) ? $size_data['file'] : '';
             
             // Generate new thumbnail filename
             $size_pathinfo = pathinfo($size_data['file']);
@@ -926,15 +916,33 @@ function altm_rename_image_file() {
             
             altm_log("Thumbnail filename generation - Size suffix: '$size_suffix'");
             $new_thumb_path = trailingslashit($directory) . $new_thumb_filename;
+
+            // Some WordPress size labels can point to the same physical file (for example
+            // large and medium_large). If we already renamed that physical file for an earlier
+            // size key, only the metadata needs to be updated here.
+            if ($old_thumb_filename && isset($renamed_thumbnail_map[$old_thumb_filename])) {
+                $new_metadata['sizes'][$size_name]['file'] = $renamed_thumbnail_map[$old_thumb_filename];
+                altm_log("Thumbnail metadata synced from previously renamed sibling - Size: $size_name");
+                continue;
+            }
             
             // Rename thumbnail if it exists using WordPress Filesystem API
             if ($wp_filesystem->exists($old_thumb_path)) {
                 if ($wp_filesystem->move($old_thumb_path, $new_thumb_path, true)) {
                     $new_metadata['sizes'][$size_name]['file'] = $new_thumb_filename;
+                    if ($old_thumb_filename) {
+                        $renamed_thumbnail_map[$old_thumb_filename] = $new_thumb_filename;
+                    }
                     altm_log("Thumbnail renamed - Size: $size_name");
                 } else {
                     altm_log("Failed to rename thumbnail - Size: $size_name, Path: $old_thumb_path");
                 }
+            } elseif ($wp_filesystem->exists($new_thumb_path)) {
+                $new_metadata['sizes'][$size_name]['file'] = $new_thumb_filename;
+                if ($old_thumb_filename) {
+                    $renamed_thumbnail_map[$old_thumb_filename] = $new_thumb_filename;
+                }
+                altm_log("Thumbnail already present at renamed path - Size: $size_name");
             }
         }
         // Ensure the top-level metadata 'file' points to the new main file so WP builds correct srcset 'full' candidate
@@ -974,9 +982,9 @@ function altm_rename_image_file() {
     clean_post_cache($attachment_id);
     
     // Log update options status
-    $update_posts = get_option('alt_magic_update_posts', 1) ? 'enabled' : 'disabled';
-    $update_excerpts = get_option('alt_magic_update_excerpts', 0) ? 'enabled' : 'disabled';
-    $update_postmeta = get_option('alt_magic_update_postmeta', 1) ? 'enabled' : 'disabled';
+    $update_posts = 'enabled';
+    $update_excerpts = 'enabled';
+    $update_postmeta = 'enabled';
     $update_guid = get_option('alt_magic_update_guid', 0) ? 'enabled' : 'disabled';
     
     altm_log("Image renamed: $old_filename → $new_filename (ID: $attachment_id) - Title: '$new_title', Slug: '$new_slug'");
@@ -1031,9 +1039,9 @@ function altm_rename_image_file() {
 	altm_add_rename_history_entry($attachment_id, $rename_entry);
 
 	$options_snapshot = array(
-		'update_posts' => (int) get_option('alt_magic_update_posts', 1),
-		'update_excerpts' => (int) get_option('alt_magic_update_excerpts', 0),
-		'update_postmeta' => (int) get_option('alt_magic_update_postmeta', 1),
+		'update_posts' => 1,
+		'update_excerpts' => 1,
+		'update_postmeta' => 1,
 		'update_guid' => (int) get_option('alt_magic_update_guid', 0),
 		'enable_redirections' => (int) get_option('alt_magic_enable_redirections', 0),
 	);

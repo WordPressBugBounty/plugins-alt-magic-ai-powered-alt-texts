@@ -103,10 +103,13 @@ jQuery(document).ready(function ($) {
             return '';
         }
 
-        const languageLabel = image.wpml_language_label || image.wpml_language_code || 'Unknown';
+        const languageCode = image.wpml_language_code || '';
+        const languageLabel = image.wpml_language_label || languageCode || 'Unknown';
         const theme = getLanguageBadgeTheme(image.wpml_language_code);
         const flagUrl = image.wpml_flag_url || '';
+        const shouldShowFlag = !!flagUrl && languageCode !== '' && languageLabel.toLowerCase() !== 'unknown';
         const flagHtml = flagUrl
+            && shouldShowFlag
             ? '<img src="' + flagUrl + '" alt="" style="width: 14px; height: 10px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);" />'
             : '';
 
@@ -121,9 +124,9 @@ jQuery(document).ready(function ($) {
 
 
     let tabData = {
-        'empty-alt': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', allImages: [] },
-        'short-alt': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', allImages: [] },
-        'all-images': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', allImages: [] }
+        'empty-alt': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', totalItems: 0, isLoaded: false },
+        'short-alt': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', totalItems: 0, isLoaded: false },
+        'all-images': { images: [], currentPage: 1, totalPages: 0, pageSize: 25, searchTerm: '', totalItems: 0, isLoaded: false }
     };
     let currentCredits = null; // Track current credits
 
@@ -267,7 +270,7 @@ jQuery(document).ready(function ($) {
         $('#tab-content-' + tabName).addClass('active');
 
         // Load data for the tab if not already loaded
-        if (tabData[tabName].images.length === 0) {
+        if (!tabData[tabName].isLoaded) {
             loadTabData(tabName);
         } else {
             // Ensure pagination controls are visible even for cached data
@@ -304,38 +307,14 @@ jQuery(document).ready(function ($) {
     }
 
     function handleSearch(tab, searchTerm) {
-        // Safety check: ensure allImages exists
-        if (!tabData[tab] || !tabData[tab].allImages) {
+        if (!tabData[tab]) {
             return;
         }
 
         searchTerm = (searchTerm || '').toLowerCase().trim();
         tabData[tab].searchTerm = searchTerm;
-
-        // Filter images based on search term
-        if (searchTerm === '') {
-            tabData[tab].images = tabData[tab].allImages.slice();
-        } else {
-            tabData[tab].images = tabData[tab].allImages.filter(function (image) {
-                const id = (image.ID || '').toString();
-                const altText = (image.alt_text || '').toLowerCase();
-                return id.includes(searchTerm) || altText.includes(searchTerm);
-            });
-        }
-
-        // Reset to first page and recalculate pagination
         tabData[tab].currentPage = 1;
-        tabData[tab].totalPages = Math.ceil(tabData[tab].images.length / tabData[tab].pageSize);
-
-        // Validate and fix current page
-        validateAndFixCurrentPage(tab);
-
-        // Re-render the list
-        renderCurrentPage(tab);
-        updatePaginationUI(tab);
-
-        // Update selection UI
-        updateSelectionUI(tab);
+        loadTabData(tab);
     }
 
     // Search input handlers with debounce
@@ -362,15 +341,6 @@ jQuery(document).ready(function ($) {
     $('#search-all-images').on('input', function () {
         debouncedSearchAllImages($(this).val());
     });
-
-
-
-
-
-    // Load initial tab data
-    loadTabData('empty-alt');
-
-
 
     // Selection functionality
     function updateSelectionUI(tab) {
@@ -477,10 +447,7 @@ jQuery(document).ready(function ($) {
         // Always ensure pagination controls are visible when there are images
         $('#tab-content-' + tab + ' .altm-pagination-controls').show();
 
-        const startIndex = (data.currentPage - 1) * data.pageSize;
-        const endIndex = Math.min(startIndex + data.pageSize, images.length);
-
-        for (let i = startIndex; i < endIndex; i++) {
+        for (let i = 0; i < images.length; i++) {
             const image = images[i];
             let altTextDisplay = image.alt_text ? image.alt_text : '<span style="color: #ff9999; font-style: italic;">Empty</span>';
             let row = '<tr>' +
@@ -547,9 +514,11 @@ jQuery(document).ready(function ($) {
             container.find('.altm-pagination').remove();
 
             // Show simple page info when there's only 1 page
-            if (data.images.length > 0) {
+            if (data.totalItems > 0) {
                 let pageInfoHtml = '<div class="altm-pagination">';
-                pageInfoHtml += '<div class="altm-pagination-info">Showing 1 to ' + data.images.length + ' of ' + data.images.length + ' images</div>';
+                let startIndexSingle = ((data.currentPage - 1) * data.pageSize) + 1;
+                let endIndexSingle = Math.min(startIndexSingle + data.images.length - 1, data.totalItems);
+                pageInfoHtml += '<div class="altm-pagination-info">Showing ' + startIndexSingle + ' to ' + endIndexSingle + ' of ' + data.totalItems + ' images</div>';
                 pageInfoHtml += '</div>';
 
                 container.find('.altm-pagination').remove();
@@ -562,8 +531,8 @@ jQuery(document).ready(function ($) {
 
         // Page info
         const startIndex = (data.currentPage - 1) * data.pageSize + 1;
-        const endIndex = Math.min(data.currentPage * data.pageSize, data.images.length);
-        paginationHtml += '<div class="altm-pagination-info">Showing ' + startIndex + ' to ' + endIndex + ' of ' + data.images.length + ' images</div>';
+        const endIndex = Math.min(startIndex + data.images.length - 1, data.totalItems);
+        paginationHtml += '<div class="altm-pagination-info">Showing ' + startIndex + ' to ' + endIndex + ' of ' + data.totalItems + ' images</div>';
 
         // Page numbers
         paginationHtml += '<div class="altm-pagination-numbers">';
@@ -623,8 +592,7 @@ jQuery(document).ready(function ($) {
         }
 
         tabData[tab].currentPage = page;
-        renderCurrentPage(tab);
-        updatePaginationUI(tab);
+        loadTabData(tab);
     }
 
     function validateAndFixCurrentPage(tab) {
@@ -646,26 +614,18 @@ jQuery(document).ready(function ($) {
     }
 
     function resolvePageSize(tab, newPageSize) {
-        if (newPageSize === 'all') {
-            const total = tabData[tab].images.length || tabData[tab].allImages.length || 1;
-            return Math.max(1, total);
-        }
         const parsed = parseInt(newPageSize, 10);
-        return isNaN(parsed) ? 25 : parsed;
+        if (isNaN(parsed)) {
+            return 25;
+        }
+
+        return Math.min(500, Math.max(1, parsed));
     }
 
     function handlePageSizeChange(tab, newPageSize) {
         tabData[tab].pageSize = resolvePageSize(tab, newPageSize);
         tabData[tab].currentPage = 1; // Reset to first page
-
-        // Recalculate total pages based on new page size
-        tabData[tab].totalPages = Math.ceil((tabData[tab].images.length || 0) / tabData[tab].pageSize || 1);
-
-        // Validate and fix current page
-        validateAndFixCurrentPage(tab);
-
-        renderCurrentPage(tab);
-        updatePaginationUI(tab);
+        loadTabData(tab);
     }
 
     function ensurePaginationControlsVisible(tab) {
@@ -683,7 +643,6 @@ jQuery(document).ready(function ($) {
             controlsHtml += '<option value="50">50</option>';
             controlsHtml += '<option value="100">100</option>';
             controlsHtml += '<option value="500">500</option>';
-            controlsHtml += '<option value="all">All images</option>';
             controlsHtml += '</select>';
             controlsHtml += '</div>';
             controlsHtml += '</div>';
@@ -744,32 +703,40 @@ jQuery(document).ready(function ($) {
         }
 
         if (action) {
-            $.post(ajaxurl, { action: action }, function (response) {
+            $.post(ajaxurl, {
+                action: action,
+                nonce: altmImageProcessing.listImagesNonce,
+                page: tabData[tab].currentPage,
+                per_page: tabData[tab].pageSize,
+                search: tabData[tab].searchTerm,
+                lang: getCurrentWpmlLanguage()
+            }, function (response) {
                 if (response.success) {
-                    let images = response.data;
-                    tabData[tab].allImages = images;
+                    let payload = response.data || {};
+                    let images = Array.isArray(payload.images) ? payload.images : [];
                     tabData[tab].images = images;
-                    tabData[tab].totalPages = Math.ceil(images.length / tabData[tab].pageSize);
-                    tabData[tab].currentPage = 1;
-
-                    // Validate and fix current page
-                    validateAndFixCurrentPage(tab);
+                    tabData[tab].totalItems = parseInt(payload.total, 10) || 0;
+                    tabData[tab].totalPages = parseInt(payload.pages, 10) || 0;
+                    tabData[tab].currentPage = parseInt(payload.page, 10) || 1;
+                    tabData[tab].pageSize = parseInt(payload.page_size, 10) || tabData[tab].pageSize;
+                    tabData[tab].isLoaded = true;
 
                     if (tab === 'empty-alt') {
-                        $('#empty-alt-count').text(images.length);
-                        $('#bulk-generate-all-empty-alt .total-count').text(images.length);
+                        $('#empty-alt-count').text(tabData[tab].totalItems);
+                        $('#bulk-generate-all-empty-alt .total-count').text(tabData[tab].totalItems);
                     }
                     if (tab === 'short-alt') {
-                        $('#short-alt-count').text(images.length);
-                        $('#bulk-generate-all-short-alt .total-count').text(images.length);
+                        $('#short-alt-count').text(tabData[tab].totalItems);
+                        $('#bulk-generate-all-short-alt .total-count').text(tabData[tab].totalItems);
                     }
                     if (tab === 'all-images') {
-                        $('#all-images-count').text(images.length);
-                        $('#bulk-generate-all-all-images .total-count').text(images.length);
+                        $('#all-images-count').text(tabData[tab].totalItems);
+                        $('#bulk-generate-all-all-images .total-count').text(tabData[tab].totalItems);
                     }
 
                     // Ensure pagination controls are visible and properly initialized
                     ensurePaginationControlsVisible(tab);
+                    $('#page-size-' + tab).val(String(tabData[tab].pageSize));
 
                     renderCurrentPage(tab);
                     updatePaginationUI(tab);
@@ -791,7 +758,7 @@ jQuery(document).ready(function ($) {
                             '<div style="color: #d63638; line-height: 1.6;">' +
                             '<div style="font-size: 48px; margin-bottom: 16px;">⚠️ </div>' +
                             '<h3 style="margin: 0 0 12px 0; color: #d63638;">Error loading images</h3>' +
-                            '<p style="margin: 0;">' + (response.data || 'Unknown error occurred. Please try again.') + '</p>' +
+                            '<p style="margin: 0;">' + ((response.data && response.data.message) || 'Unknown error occurred. Please try again.') + '</p>' +
                             '</div>' +
                             '</td>' +
                             '</tr>'
@@ -823,6 +790,12 @@ jQuery(document).ready(function ($) {
         }
     }
 
+    function refreshAllTabs() {
+        ['empty-alt', 'short-alt', 'all-images'].forEach(function (tab) {
+            loadTabData(tab);
+        });
+    }
+
     // Bulk processing variables
     let bulkProcessing = {
         isRunning: false,
@@ -833,7 +806,11 @@ jQuery(document).ready(function ($) {
         failedCount: 0,
         items: [],
         queue: [],
-        stoppedDueToCredits: false
+        stoppedDueToCredits: false,
+        mode: 'selected',
+        queryTab: '',
+        searchTerm: '',
+        cursorId: 0
     };
 
     // Modal functions
@@ -859,7 +836,11 @@ jQuery(document).ready(function ($) {
             queue: [],
             activeRequests: 0,
             maxConcurrency: MAX_CONCURRENCY,
-            stoppedDueToCredits: false
+            stoppedDueToCredits: false,
+            mode: 'selected',
+            queryTab: '',
+            searchTerm: '',
+            cursorId: 0
         };
 
         // Reset modal content
@@ -882,6 +863,9 @@ jQuery(document).ready(function ($) {
 
     function updateProgress() {
         let percentage = Math.round((bulkProcessing.processedCount / bulkProcessing.totalItems) * 100);
+        if (bulkProcessing.processedCount > 0 && percentage === 0) {
+            percentage = 1;
+        }
         $('#progress-text').text(bulkProcessing.processedCount + ' of ' + bulkProcessing.totalItems);
         $('#progress-bar-fill').css('width', percentage + '%');
         $('#progress-percentage').text(percentage + '%');
@@ -954,14 +938,10 @@ jQuery(document).ready(function ($) {
                         if (result.success && result.alt_text) {
                             bulkProcessing.successCount++;
 
-                            // Update the data in memory (both filtered and all images)
+                            // Update the data in memory for the current page
                             let image = tabData[activeTab].images.find(img => img.ID == imageId);
                             if (image) {
                                 image.alt_text = result.alt_text;
-                            }
-                            let allImage = tabData[activeTab].allImages.find(img => img.ID == imageId);
-                            if (allImage) {
-                                allImage.alt_text = result.alt_text;
                             }
 
                             // Update credits from response (use the last valid credits count)
@@ -1079,6 +1059,96 @@ jQuery(document).ready(function ($) {
         finalizeBulkProcessing();
     }
 
+    async function processAllImagesByQuery() {
+        const chunkSize = Math.min(10, Math.max(1, parseInt(altmImageProcessing.maxConcurrency, 10) || 5));
+
+        while (!bulkProcessing.shouldCancel) {
+            let response;
+
+            try {
+                response = await $.post(altmImageProcessing.ajaxUrl, {
+                    action: 'altm_generate_alt_text_bulk_query_ajax',
+                    tab: bulkProcessing.queryTab,
+                    search: bulkProcessing.searchTerm,
+                    cursor_id: bulkProcessing.cursorId,
+                    chunk_size: chunkSize,
+                    nonce: altmImageProcessing.generateAltTextNonce,
+                    lang: getCurrentWpmlLanguage()
+                });
+            } catch (error) {
+                bulkProcessing.failedCount++;
+                addFailedImage('Batch', 'Request failed: ' + error.message);
+                break;
+            }
+
+            if (!response.success || !response.data) {
+                bulkProcessing.failedCount++;
+                addFailedImage('Batch', (response.data && response.data.message) || 'Unable to process the next image chunk.');
+                break;
+            }
+
+            const results = response.data.results || {};
+            const processedIds = Array.isArray(response.data.processed_ids) ? response.data.processed_ids : [];
+
+            if (processedIds.length === 0) {
+                break;
+            }
+
+            let hasCreditsError = false;
+
+            processedIds.forEach(function (imageId) {
+                const result = results[imageId] || results[String(imageId)] || {};
+
+                if (result.success && result.alt_text) {
+                    bulkProcessing.successCount++;
+
+                    const image = tabData[bulkProcessing.queryTab].images.find(function (item) {
+                        return item.ID == imageId;
+                    });
+                    if (image) {
+                        image.alt_text = result.alt_text;
+                    }
+
+                    if (result.credits_available !== null && result.credits_available !== undefined) {
+                        updateCreditsFromResponse({
+                            data: { credits_available: result.credits_available }
+                        });
+                    }
+                } else {
+                    bulkProcessing.failedCount++;
+
+                    const errorMessage = result.message || 'Unable to process';
+                    const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
+                        errorMessage.toLowerCase().includes('insufficient') ||
+                        (typeof result.credits_available === 'number' && result.credits_available <= 0);
+
+                    if (isCreditsError) {
+                        bulkProcessing.stoppedDueToCredits = true;
+                        bulkProcessing.shouldCancel = true;
+                        hasCreditsError = true;
+                    }
+
+                    addFailedImage(imageId, errorMessage);
+                }
+
+                bulkProcessing.processedCount++;
+                updateProgress();
+            });
+
+            bulkProcessing.cursorId = parseInt(response.data.next_cursor, 10) || 0;
+
+            if (hasCreditsError || !response.data.has_more) {
+                break;
+            }
+
+            await new Promise(function (resolve) {
+                setTimeout(resolve, 100);
+            });
+        }
+
+        finalizeBulkProcessing();
+    }
+
     function finalizeBulkProcessing() {
         // Calculate total processing time
         const totalTime = performance.now() - bulkProcessing.startTime;
@@ -1111,9 +1181,7 @@ jQuery(document).ready(function ($) {
         // Clear any remaining queue
         bulkProcessing.queue = [];
 
-        // Refresh the current page to show updates
-        let activeTab = $('.tab-content.active').attr('id').replace('tab-content-', '');
-        renderCurrentPage(activeTab);
+        refreshAllTabs();
     }
 
     function startBulkProcessing(items) {
@@ -1152,6 +1220,47 @@ jQuery(document).ready(function ($) {
         processAllImages();
     }
 
+    function startBulkProcessingForQuery(tab) {
+        if (bulkProcessing.isRunning) {
+            alert('Bulk processing is already running.');
+            return;
+        }
+
+        if (!altmImageProcessing.hasApiKey) {
+            showAuthErrorModal('No Alt Magic account found. Please connect your account in Account Settings.');
+            return;
+        }
+
+        if (currentCredits !== null && currentCredits <= 0) {
+            showNoCreditsModal('You don\'t have enough credits to start bulk processing. Please purchase more credits to continue.');
+            return;
+        }
+
+        if (!tabData[tab] || tabData[tab].totalItems <= 0) {
+            alert('No images found in this tab.');
+            return;
+        }
+
+        bulkProcessing.isRunning = true;
+        bulkProcessing.shouldCancel = false;
+        bulkProcessing.stoppedDueToCredits = false;
+        bulkProcessing.totalItems = tabData[tab].totalItems;
+        bulkProcessing.processedCount = 0;
+        bulkProcessing.successCount = 0;
+        bulkProcessing.failedCount = 0;
+        bulkProcessing.items = [];
+        bulkProcessing.queue = [];
+        bulkProcessing.mode = 'query';
+        bulkProcessing.queryTab = tab;
+        bulkProcessing.searchTerm = tabData[tab].searchTerm;
+        bulkProcessing.cursorId = 0;
+        bulkProcessing.startTime = performance.now();
+
+        showProcessingModal();
+        updateProgress();
+        processAllImagesByQuery();
+    }
+
     // Load initial data for all tabs
     loadTabData('empty-alt');
     loadTabData('short-alt');
@@ -1175,8 +1284,7 @@ jQuery(document).ready(function ($) {
         let tab = $(this).closest('.tab-content').attr('id').replace('tab-content-', '');
         if (tabData[tab].currentPage > 1) {
             tabData[tab].currentPage--;
-            renderCurrentPage(tab);
-            updatePaginationUI(tab);
+            loadTabData(tab);
         }
     });
 
@@ -1184,8 +1292,7 @@ jQuery(document).ready(function ($) {
         let tab = $(this).closest('.tab-content').attr('id').replace('tab-content-', '');
         if (tabData[tab].currentPage < tabData[tab].totalPages) {
             tabData[tab].currentPage++;
-            renderCurrentPage(tab);
-            updatePaginationUI(tab);
+            loadTabData(tab);
         }
     });
 
@@ -1320,19 +1427,16 @@ jQuery(document).ready(function ($) {
                     const altTextCell = button.closest('tr').find('.altm-alt-text-cell');
                     altTextCell.data('alt-text', response.data.alt_text);
                     altTextCell.html('<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + response.data.alt_text + '</div>');
-                    // Also update the alt text in the source data to persist across pagination
+                    // Also update the alt text in the current page data
                     let tab = button.closest('.tab-content').attr('id').replace('tab-content-', '');
                     let image = tabData[tab].images.find(img => img.ID == attachmentId);
                     if (image) {
                         image.alt_text = response.data.alt_text;
                     }
-                    let allImage = tabData[tab].allImages.find(img => img.ID == attachmentId);
-                    if (allImage) {
-                        allImage.alt_text = response.data.alt_text;
-                    }
                     // Update credits from response
                     updateCreditsFromResponse(response);
                     button.text('Generate alt text').prop('disabled', false);
+                    refreshAllTabs();
                 } else {
                     // Handle null alt_text as an error
                     console.log('Alt text is null');
@@ -1391,12 +1495,7 @@ jQuery(document).ready(function ($) {
     });
 
     $('#bulk-generate-all-empty-alt').on('click', function () {
-        let allItems = tabData['empty-alt'].images.map(img => ({ id: img.ID }));
-        if (allItems.length === 0) {
-            alert('No images found in this tab.');
-            return;
-        }
-        startBulkProcessing(allItems);
+        startBulkProcessingForQuery('empty-alt');
     });
 
     $('#bulk-generate-selected-short-alt').on('click', function () {
@@ -1415,12 +1514,7 @@ jQuery(document).ready(function ($) {
     });
 
     $('#bulk-generate-all-short-alt').on('click', function () {
-        let allItems = tabData['short-alt'].images.map(img => ({ id: img.ID }));
-        if (allItems.length === 0) {
-            alert('No images found in this tab.');
-            return;
-        }
-        startBulkProcessing(allItems);
+        startBulkProcessingForQuery('short-alt');
     });
 
     $('#bulk-generate-selected-all-images').on('click', function () {
@@ -1439,12 +1533,7 @@ jQuery(document).ready(function ($) {
     });
 
     $('#bulk-generate-all-all-images').on('click', function () {
-        let allItems = tabData['all-images'].images.map(img => ({ id: img.ID }));
-        if (allItems.length === 0) {
-            alert('No images found in this tab.');
-            return;
-        }
-        startBulkProcessing(allItems);
+        startBulkProcessingForQuery('all-images');
     });
 
     // Modal event handlers
@@ -1568,21 +1657,19 @@ jQuery(document).ready(function ($) {
             const displayText = newAltText ? newAltText : '<span style="color: #ff9999; font-style: italic;">Empty</span>';
             altTextCell.html('<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + displayText + '</div>');
 
-            // Update the data in memory (both filtered and all images)
+            // Update the data in memory for the current page
             const activeTab = row.closest('.tab-content').attr('id').replace('tab-content-', '');
             let image = tabData[activeTab].images.find(img => img.ID == imageId);
             if (image) {
                 image.alt_text = newAltText;
-            }
-            let allImage = tabData[activeTab].allImages.find(img => img.ID == imageId);
-            if (allImage) {
-                allImage.alt_text = newAltText;
             }
 
             // Close modal
             $('#altm-edit-alt-modal').fadeOut(200, function () {
                 $(this).remove();
             });
+
+            refreshAllTabs();
 
             // Show success message briefly
             const successMsg = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0;"><p>Alt text updated successfully!</p></div>');

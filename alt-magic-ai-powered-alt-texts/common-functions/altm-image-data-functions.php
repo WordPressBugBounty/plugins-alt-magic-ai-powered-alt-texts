@@ -275,45 +275,301 @@ function altm_fetch_user_credits() {
 
 add_action('wp_ajax_altm_fetch_user_credits', 'altm_fetch_user_credits');
 
+function altm_get_image_processing_query_request() {
+    $page = isset($_POST['page']) ? absint(wp_unslash($_POST['page'])) : 1;
+    $per_page = isset($_POST['per_page']) ? absint(wp_unslash($_POST['per_page'])) : 25;
+    $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+
+    if ($page < 1) {
+        $page = 1;
+    }
+
+    $per_page = min(500, max(1, $per_page));
+
+    return array(
+        'page' => $page,
+        'per_page' => $per_page,
+        'search' => $search,
+    );
+}
+
+function altm_get_wpml_translations_table_name() {
+    static $table_name = null;
+
+    if ($table_name !== null) {
+        return $table_name;
+    }
+
+    if (!altm_is_wpml_active()) {
+        $table_name = '';
+        return $table_name;
+    }
+
+    global $wpdb;
+
+    $candidate = $wpdb->prefix . 'icl_translations';
+    $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $candidate));
+    $table_name = $exists === $candidate ? $candidate : '';
+
+    return $table_name;
+}
+
+function altm_get_image_processing_filter_language_code() {
+    if (!altm_is_wpml_active()) {
+        return '';
+    }
+
+    $scope = altm_get_wpml_bulk_image_scope();
+
+    if ($scope !== 'current_language') {
+        return '';
+    }
+
+    $current_language = altm_get_wpml_current_language_data();
+
+    return !empty($current_language['code']) ? $current_language['code'] : '';
+}
+
+function altm_get_image_processing_query_args($tab, $search = '', $cursor_id = 0) {
+    global $wpdb;
+
+    $tab = is_string($tab) ? $tab : '';
+    $search = trim((string) $search);
+    $cursor_id = absint($cursor_id);
+
+    $base_joins = array();
+    $base_wheres = array(
+        'p.post_type = %s',
+        'p.post_mime_type LIKE %s',
+    );
+    $params = array('attachment', 'image/%');
+
+    if ($tab === 'empty-alt') {
+        $base_joins[] = "LEFT JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'";
+        $base_wheres[] = "(pm_alt.meta_value IS NULL OR pm_alt.meta_value = '')";
+    } elseif ($tab === 'short-alt') {
+        $base_joins[] = "INNER JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'";
+        $base_wheres[] = "pm_alt.meta_value IS NOT NULL";
+        $base_wheres[] = "pm_alt.meta_value != ''";
+        $base_wheres[] = "CHAR_LENGTH(pm_alt.meta_value) < 20";
+    } elseif ($tab === 'all-images') {
+        $base_joins[] = "LEFT JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'";
+    } else {
+        return false;
+    }
+
+    if ($search !== '') {
+        $base_wheres[] = "(CAST(p.ID AS CHAR) LIKE %s OR COALESCE(pm_alt.meta_value, '') LIKE %s)";
+        $like = '%' . $wpdb->esc_like($search) . '%';
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    if ($cursor_id > 0) {
+        $base_wheres[] = 'p.ID < %d';
+        $params[] = $cursor_id;
+    }
+
+    $translations_table = altm_get_wpml_translations_table_name();
+    $wpml_language_code = altm_get_image_processing_filter_language_code();
+    $wpml_join = '';
+    $wpml_where = '';
+
+    if ($translations_table !== '' && $wpml_language_code !== '') {
+        $wpml_join = " INNER JOIN {$translations_table} wpml_tr ON wpml_tr.element_id = p.ID AND wpml_tr.element_type = 'post_attachment'";
+        $wpml_where = 'wpml_tr.language_code = %s';
+        $params[] = $wpml_language_code;
+    }
+
+    return array(
+        'tab' => $tab,
+        'joins' => $base_joins,
+        'wheres' => $base_wheres,
+        'params' => $params,
+        'wpml_join' => $wpml_join,
+        'wpml_where' => $wpml_where,
+    );
+}
+
+function altm_get_image_processing_total_count($tab, $search = '') {
+    global $wpdb;
+
+    $query_args = altm_get_image_processing_query_args($tab, $search);
+    if ($query_args === false) {
+        return 0;
+    }
+
+    $joins = implode(' ', $query_args['joins']) . $query_args['wpml_join'];
+    $where_parts = $query_args['wheres'];
+
+    if ($query_args['wpml_where'] !== '') {
+        $where_parts[] = $query_args['wpml_where'];
+    }
+
+    $where_sql = implode(' AND ', $where_parts);
+    $count_query = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$joins} WHERE {$where_sql}";
+    $count_params = $query_args['params'];
+
+    if (!empty($count_params)) {
+        $count_query = $wpdb->prepare($count_query, $count_params);
+    }
+
+    return (int) $wpdb->get_var($count_query);
+}
+
+function altm_prepare_image_processing_rows($rows) {
+    if (empty($rows)) {
+        return array();
+    }
+
+    $images = array();
+
+    foreach ($rows as $row) {
+        $image_url = wp_get_attachment_image_url($row->ID, 'medium');
+        if (!$image_url) {
+            $image_url = wp_get_attachment_image_url($row->ID, 'thumbnail');
+        }
+        if (!$image_url) {
+            $image_url = wp_get_attachment_url($row->ID);
+        }
+
+        $alt_text = isset($row->alt_text) ? (string) $row->alt_text : '';
+        $attached_file = isset($row->attached_file) ? (string) $row->attached_file : '';
+        $language_data = altm_get_wpml_attachment_language_data_for_list((int) $row->ID, isset($row->wpml_language_code) ? (string) $row->wpml_language_code : '');
+
+        $images[] = array(
+            'ID' => (int) $row->ID,
+            'alt_text' => $alt_text,
+            'image_url' => $image_url,
+            'filename' => $attached_file !== '' ? basename($attached_file) : basename((string) wp_parse_url($image_url, PHP_URL_PATH)),
+            'wpml_language_code' => $language_data['code'],
+            'wpml_language_label' => $language_data['label'],
+            'wpml_flag_url' => $language_data['flag_url'],
+        );
+    }
+
+    return $images;
+}
+
+function altm_get_image_processing_page_response($tab, $page, $per_page, $search = '') {
+    global $wpdb;
+
+    $query_args = altm_get_image_processing_query_args($tab, $search);
+    if ($query_args === false) {
+        return new WP_Error('invalid_tab', __('Invalid image processing tab.', 'alt-magic'));
+    }
+
+    $joins = implode(' ', $query_args['joins']) . $query_args['wpml_join'];
+    $where_parts = $query_args['wheres'];
+
+    if ($query_args['wpml_where'] !== '') {
+        $where_parts[] = $query_args['wpml_where'];
+    }
+
+    $where_sql = implode(' AND ', $where_parts);
+    $total = altm_get_image_processing_total_count($tab, $search);
+    $total_pages = $total > 0 ? (int) ceil($total / max(1, $per_page)) : 0;
+
+    if ($total_pages > 0 && $page > $total_pages) {
+        $page = $total_pages;
+    }
+
+    if ($page < 1) {
+        $page = 1;
+    }
+
+    $offset = ($page - 1) * $per_page;
+
+    $row_query = "
+        SELECT DISTINCT p.ID,
+               COALESCE(pm_alt.meta_value, '') AS alt_text,
+               pm_file.meta_value AS attached_file" .
+               ($query_args['wpml_join'] !== '' ? ', wpml_tr.language_code AS wpml_language_code' : '') . "
+        FROM {$wpdb->posts} p
+        " . implode(' ', $query_args['joins']) . "
+        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
+        {$query_args['wpml_join']}
+        WHERE {$where_sql}
+        ORDER BY p.ID DESC
+        LIMIT %d OFFSET %d
+    ";
+
+    $row_params = $query_args['params'];
+    $row_params[] = $per_page;
+    $row_params[] = $offset;
+    $row_query = $wpdb->prepare($row_query, $row_params);
+    $rows = $wpdb->get_results($row_query);
+
+    return array(
+        'images' => altm_prepare_image_processing_rows($rows),
+        'total' => $total,
+        'pages' => $total_pages,
+        'page' => $page,
+        'page_size' => $per_page,
+    );
+}
+
+function altm_get_image_processing_chunk_ids($tab, $search = '', $chunk_size = 25, $cursor_id = 0) {
+    global $wpdb;
+
+    $chunk_size = min(50, max(1, (int) $chunk_size));
+    $query_args = altm_get_image_processing_query_args($tab, $search, $cursor_id);
+    if ($query_args === false) {
+        return array();
+    }
+
+    $joins = implode(' ', $query_args['joins']) . $query_args['wpml_join'];
+    $where_parts = $query_args['wheres'];
+
+    if ($query_args['wpml_where'] !== '') {
+        $where_parts[] = $query_args['wpml_where'];
+    }
+
+    $where_sql = implode(' AND ', $where_parts);
+    $id_query = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where_sql}
+        ORDER BY p.ID DESC
+        LIMIT %d
+    ";
+
+    $params = $query_args['params'];
+    $params[] = $chunk_size;
+    $id_query = $wpdb->prepare($id_query, $params);
+
+    return array_map('intval', $wpdb->get_col($id_query));
+}
+
+function altm_handle_image_processing_page_request($tab) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_image_processing_list_nonce')) {
+        wp_send_json_error(array('message' => 'Invalid nonce.'));
+        return;
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        return;
+    }
+
+    $request = altm_get_image_processing_query_request();
+    $response = altm_get_image_processing_page_response($tab, $request['page'], $request['per_page'], $request['search']);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(array('message' => $response->get_error_message()));
+        return;
+    }
+
+    wp_send_json_success($response);
+}
+
 
 /**
  * Get images with empty alt text
  */
 function altm_get_images_with_empty_alt_text() {
-    global $wpdb;
-
-    $query = $wpdb->prepare("
-        SELECT p.ID,
-               pm_alt.meta_value as alt_text,
-               pm_file.meta_value as attached_file
-        FROM {$wpdb->posts} p
-        LEFT JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s 
-        AND (pm_alt.meta_value IS NULL OR pm_alt.meta_value = '')
-        ORDER BY p.ID DESC
-    ", 'attachment', 'image/%');
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $images = $wpdb->get_results($query);
-    
-    // Add proper image URL and filename data
-    foreach ($images as $image) {
-        // Get proper image URL using WordPress functions
-        $image->image_url = wp_get_attachment_url($image->ID);
-        
-        // Get filename
-        if (!empty($image->attached_file)) {
-            $image->filename = basename($image->attached_file);
-        } else {
-            $image->filename = basename(wp_parse_url($image->image_url, PHP_URL_PATH));
-        }
-    }
-
-    $images = altm_prepare_wpml_image_collection($images, 'ID');
-    
-    wp_send_json_success($images);
+    altm_handle_image_processing_page_request('empty-alt');
 }
 add_action('wp_ajax_altm_get_images_with_empty_alt_text', 'altm_get_images_with_empty_alt_text');
 
@@ -321,42 +577,7 @@ add_action('wp_ajax_altm_get_images_with_empty_alt_text', 'altm_get_images_with_
  * Get images with short alt text
  */
 function altm_get_images_with_short_alt_text() {
-    global $wpdb;
-
-    $query = $wpdb->prepare("
-        SELECT p.ID,
-               pm_alt.meta_value as alt_text,
-               pm_file.meta_value as attached_file
-        FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s 
-        AND pm_alt.meta_value IS NOT NULL 
-        AND pm_alt.meta_value != ''
-        AND CHAR_LENGTH(pm_alt.meta_value) < 20
-        ORDER BY p.ID DESC
-    ", 'attachment', 'image/%');
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $images = $wpdb->get_results($query);
-    
-    // Add proper image URL and filename data
-    foreach ($images as $image) {
-        // Get proper image URL using WordPress functions
-        $image->image_url = wp_get_attachment_url($image->ID);
-        
-        // Get filename
-        if (!empty($image->attached_file)) {
-            $image->filename = basename($image->attached_file);
-        } else {
-            $image->filename = basename(wp_parse_url($image->image_url, PHP_URL_PATH));
-        }
-    }
-
-    $images = altm_prepare_wpml_image_collection($images, 'ID');
-    
-    wp_send_json_success($images);
+    altm_handle_image_processing_page_request('short-alt');
 }
 add_action('wp_ajax_altm_get_images_with_short_alt_text', 'altm_get_images_with_short_alt_text');
 
@@ -364,42 +585,7 @@ add_action('wp_ajax_altm_get_images_with_short_alt_text', 'altm_get_images_with_
  * Get remaining images
  */
 function altm_get_remaining_images() {
-    global $wpdb;
-
-    $query = $wpdb->prepare("
-        SELECT p.ID,
-               pm_alt.meta_value as alt_text,
-               pm_file.meta_value as attached_file
-        FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s 
-        AND pm_alt.meta_value IS NOT NULL 
-        AND pm_alt.meta_value != ''
-        AND CHAR_LENGTH(pm_alt.meta_value) >= 20
-        ORDER BY p.ID DESC
-    ", 'attachment', 'image/%');
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $images = $wpdb->get_results($query);
-    
-    // Add proper image URL and filename data
-    foreach ($images as $image) {
-        // Get proper image URL using WordPress functions
-        $image->image_url = wp_get_attachment_url($image->ID);
-        
-        // Get filename
-        if (!empty($image->attached_file)) {
-            $image->filename = basename($image->attached_file);
-        } else {
-            $image->filename = basename(wp_parse_url($image->image_url, PHP_URL_PATH));
-        }
-    }
-
-    $images = altm_prepare_wpml_image_collection($images, 'ID');
-    
-    wp_send_json_success($images);
+    altm_handle_image_processing_page_request('all-images');
 }
 add_action('wp_ajax_altm_get_remaining_images', 'altm_get_remaining_images');
 
@@ -407,39 +593,7 @@ add_action('wp_ajax_altm_get_remaining_images', 'altm_get_remaining_images');
  * Get all images
  */
 function altm_get_all_images() {
-    global $wpdb;
-
-    $query = $wpdb->prepare("
-        SELECT p.ID,
-               pm_alt.meta_value as alt_text,
-               pm_file.meta_value as attached_file
-        FROM {$wpdb->posts} p
-        LEFT JOIN {$wpdb->postmeta} pm_alt ON p.ID = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s 
-        ORDER BY p.ID DESC
-    ", 'attachment', 'image/%');
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $images = $wpdb->get_results($query);
-    
-    // Add proper image URL and filename data
-    foreach ($images as $image) {
-        // Get proper image URL using WordPress functions
-        $image->image_url = wp_get_attachment_url($image->ID);
-        
-        // Get filename
-        if (!empty($image->attached_file)) {
-            $image->filename = basename($image->attached_file);
-        } else {
-            $image->filename = basename(wp_parse_url($image->image_url, PHP_URL_PATH));
-        }
-    }
-
-    $images = altm_prepare_wpml_image_collection($images, 'ID');
-    
-    wp_send_json_success($images);
+    altm_handle_image_processing_page_request('all-images');
 }
 add_action('wp_ajax_altm_get_all_images', 'altm_get_all_images');
 
@@ -537,84 +691,211 @@ function altm_build_renaming_image_rows($results) {
     return array_values(altm_prepare_wpml_image_collection($images, 'ID'));
 }
 
-/**
- * AJAX handler to get images with bad names for the image renaming page
- */
-function altm_get_bad_name_images() {
-    // Check nonce for security (reuse the same nonce as other list endpoints)
+function altm_get_bad_name_regex_clause() {
+    $bad_name_keywords = altm_get_bad_name_keywords();
+    $keywords_regex = altm_generate_bad_name_regex($bad_name_keywords);
+
+    return $keywords_regex . " OR " .
+        "pm_file.meta_value REGEXP '(^|/)[0-9]{6,}\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(^|/)[^/]*[0-9]{7,}[^/]*(\\.[A-Za-z0-9]+)?$'";
+}
+
+function altm_get_image_renaming_query_request() {
+    $page = isset($_POST['page']) ? absint(wp_unslash($_POST['page'])) : 1;
+    $per_page = isset($_POST['per_page']) ? absint(wp_unslash($_POST['per_page'])) : 25;
+    $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+    $type_filter = isset($_POST['type_filter']) ? sanitize_text_field(wp_unslash($_POST['type_filter'])) : '';
+
+    if ($page < 1) {
+        $page = 1;
+    }
+
+    $per_page = min(500, max(1, $per_page));
+
+    return array(
+        'page' => $page,
+        'per_page' => $per_page,
+        'search' => $search,
+        'type_filter' => $type_filter,
+    );
+}
+
+function altm_get_image_renaming_query_args($tab, $search = '', $type_filter = '', $cursor_id = 0) {
+    global $wpdb;
+
+    $tab = is_string($tab) ? $tab : '';
+    $search = trim((string) $search);
+    $type_filter = trim((string) $type_filter);
+    $cursor_id = absint($cursor_id);
+
+    $joins = array(
+        "LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'",
+    );
+    $wheres = array(
+        'p.post_type = %s',
+        'p.post_mime_type LIKE %s',
+    );
+    $params = array('attachment', 'image/%');
+
+    if ($tab === 'bad-names') {
+        $wheres[] = '(' . altm_get_bad_name_regex_clause() . ')';
+    } elseif ($tab === 'all-images') {
+        if ($type_filter === 'featured') {
+            $joins[] = "INNER JOIN {$wpdb->postmeta} pm_thumb ON pm_thumb.meta_key = '_thumbnail_id' AND pm_thumb.meta_value = CAST(p.ID AS CHAR)";
+        }
+    } else {
+        return false;
+    }
+
+    if ($search !== '') {
+        $wheres[] = '(CAST(p.ID AS CHAR) LIKE %s OR p.post_title LIKE %s OR pm_file.meta_value LIKE %s)';
+        $like = '%' . $wpdb->esc_like($search) . '%';
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    if ($cursor_id > 0) {
+        $wheres[] = 'p.ID < %d';
+        $params[] = $cursor_id;
+    }
+
+    return array(
+        'joins' => $joins,
+        'wheres' => $wheres,
+        'params' => $params,
+    );
+}
+
+function altm_get_image_renaming_total_count($tab, $search = '', $type_filter = '') {
+    global $wpdb;
+
+    $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter);
+    if ($query_args === false) {
+        return 0;
+    }
+
+    $joins = implode(' ', $query_args['joins']);
+    $where_sql = implode(' AND ', $query_args['wheres']);
+    $count_query = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$joins} WHERE {$where_sql}";
+
+    if (!empty($query_args['params'])) {
+        $count_query = $wpdb->prepare($count_query, $query_args['params']);
+    }
+
+    return (int) $wpdb->get_var($count_query);
+}
+
+function altm_get_image_renaming_page_response($tab, $page, $per_page, $search = '', $type_filter = '') {
+    global $wpdb;
+
+    $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter);
+    if ($query_args === false) {
+        return new WP_Error('invalid_tab', __('Invalid image renaming tab.', 'alt-magic'));
+    }
+
+    $total = altm_get_image_renaming_total_count($tab, $search, $type_filter);
+    $total_pages = $total > 0 ? (int) ceil($total / max(1, $per_page)) : 0;
+
+    if ($total_pages > 0 && $page > $total_pages) {
+        $page = $total_pages;
+    }
+
+    if ($page < 1) {
+        $page = 1;
+    }
+
+    $offset = ($page - 1) * $per_page;
+    $joins = implode(' ', $query_args['joins']);
+    $where_sql = implode(' AND ', $query_args['wheres']);
+    $row_query = "
+        SELECT DISTINCT p.ID,
+               p.post_title,
+               pm_file.meta_value AS filename
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where_sql}
+        ORDER BY p.ID DESC
+        LIMIT %d OFFSET %d
+    ";
+
+    $row_params = $query_args['params'];
+    $row_params[] = $per_page;
+    $row_params[] = $offset;
+    $row_query = $wpdb->prepare($row_query, $row_params);
+    $rows = $wpdb->get_results($row_query);
+
+    return array(
+        'images' => altm_build_renaming_image_rows($rows),
+        'total' => $total,
+        'pages' => $total_pages,
+        'current_page' => $page,
+        'page_size' => $per_page,
+    );
+}
+
+function altm_get_image_renaming_chunk_ids($tab, $search = '', $type_filter = '', $chunk_size = 25, $cursor_id = 0) {
+    global $wpdb;
+
+    $chunk_size = min(100, max(1, (int) $chunk_size));
+    $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter, $cursor_id);
+    if ($query_args === false) {
+        return array();
+    }
+
+    $joins = implode(' ', $query_args['joins']);
+    $where_sql = implode(' AND ', $query_args['wheres']);
+    $id_query = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where_sql}
+        ORDER BY p.ID DESC
+        LIMIT %d
+    ";
+
+    $params = $query_args['params'];
+    $params[] = $chunk_size;
+    $id_query = $wpdb->prepare($id_query, $params);
+
+    return array_map('intval', $wpdb->get_col($id_query));
+}
+
+function altm_get_bad_name_image_ids($search = '', $cursor_id = 0, $limit = 25) {
+    return altm_get_image_renaming_chunk_ids('bad-names', $search, '', $limit, $cursor_id);
+}
+
+function altm_get_all_renaming_image_ids($search = '', $type_filter = '', $cursor_id = 0, $limit = 25) {
+    return altm_get_image_renaming_chunk_ids('all-images', $search, $type_filter, $limit, $cursor_id);
+}
+
+function altm_handle_image_renaming_page_request($tab) {
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_fetch_user_credits_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
         return;
     }
 
-    // Check user capabilities
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions.'));
         return;
     }
 
-    global $wpdb;
+    $request = altm_get_image_renaming_query_request();
+    $response = altm_get_image_renaming_page_response($tab, $request['page'], $request['per_page'], $request['search'], $request['type_filter']);
 
-    // Get bad name keywords and generate regex pattern
-    $bad_name_keywords = altm_get_bad_name_keywords();
-    $keywords_regex = altm_generate_bad_name_regex($bad_name_keywords);
-
-    $page = isset($_POST['page']) ? absint($_POST['page']) : 1;
-    $per_page = isset($_POST['per_page']) ? absint($_POST['per_page']) : 25;
-    $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
-
-    $offset = ($page - 1) * $per_page;
-
-    // Build search conditions
-    $search_conditions = '';
-    $search_params = array('attachment', 'image/%');
-
-    if (!empty($search)) {
-        $search_conditions = " AND (p.ID LIKE %s OR p.post_title LIKE %s OR pm_file.meta_value LIKE %s)";
-        $search_params[] = '%' . $search . '%';
-        $search_params[] = '%' . $search . '%';
-        $search_params[] = '%' . $search . '%';
+    if (is_wp_error($response)) {
+        wp_send_json_error(array('message' => $response->get_error_message()));
+        return;
     }
 
-    // Bad name patterns using MySQL REGEXP against the filename part
-    // Combine keyword patterns with numeric patterns
-    $bad_name_regex = $keywords_regex . " OR " .
-        // Numeric-only basenames with >=6 digits before the extension
-        "pm_file.meta_value REGEXP '(^|/)[0-9]{6,}\\.[A-Za-z0-9]+$' OR " .
-        // Any basename containing a sequence of >=7 digits anywhere (extension optional)
-        "pm_file.meta_value REGEXP '(^|/)[^/]*[0-9]{7,}[^/]*(\\.[A-Za-z0-9]+)?$'";
+    wp_send_json_success($response);
+}
 
-    // Get bad name images, then apply WPML filtering before pagination so totals stay accurate.
-    $query_params = $search_params;
-    // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $search_conditions contains placeholders, $bad_name_regex is safely constructed
-    $images_query = $wpdb->prepare(
-        "
-        SELECT p.ID, p.post_title, pm_file.meta_value as filename
-        FROM {$wpdb->posts} p
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s
-        $search_conditions
-        AND ($bad_name_regex)
-        ORDER BY p.ID DESC
-        ",
-        $query_params
-    );
-    // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $results = $wpdb->get_results($images_query);
-
-    $images = altm_build_renaming_image_rows($results);
-    $total = count($images);
-    $total_pages = ceil(max(0, (int) $total) / max(1, $per_page));
-    $images = array_slice($images, $offset, $per_page);
-
-    wp_send_json_success(array(
-        'images' => $images,
-        'total' => (int)$total,
-        'pages' => (int)$total_pages
-    ));
+/**
+ * AJAX handler to get images with bad names for the image renaming page
+ */
+function altm_get_bad_name_images() {
+    altm_handle_image_renaming_page_request('bad-names');
 }
 add_action('wp_ajax_altm_get_bad_name_images', 'altm_get_bad_name_images');
 
@@ -622,79 +903,47 @@ add_action('wp_ajax_altm_get_bad_name_images', 'altm_get_bad_name_images');
  * AJAX handler to get all images for the image renaming page
  */
 function altm_get_all_images_for_renaming() {
-    // Check nonce for security
+    altm_handle_image_renaming_page_request('all-images');
+}
+add_action('wp_ajax_altm_get_all_images_for_renaming', 'altm_get_all_images_for_renaming');
+
+function altm_get_bulk_rename_chunk_ids() {
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_fetch_user_credits_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
         return;
     }
 
-    // Check user capabilities
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions.'));
         return;
     }
 
-    global $wpdb;
+    if (function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+        wp_send_json_error(array('message' => 'Bulk image renaming is not available when WPML is active.'));
+        return;
+    }
 
-    $page = isset($_POST['page']) ? absint($_POST['page']) : 1;
-    $per_page = isset($_POST['per_page']) ? absint($_POST['per_page']) : 25;
+    $tab = isset($_POST['tab']) ? sanitize_text_field(wp_unslash($_POST['tab'])) : 'all-images';
     $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
     $type_filter = isset($_POST['type_filter']) ? sanitize_text_field(wp_unslash($_POST['type_filter'])) : '';
+    $cursor_id = isset($_POST['cursor_id']) ? absint(wp_unslash($_POST['cursor_id'])) : 0;
+    $chunk_size = isset($_POST['chunk_size']) ? absint(wp_unslash($_POST['chunk_size'])) : 25;
 
-    $offset = ($page - 1) * $per_page;
-
-    // Build search conditions
-    $search_conditions = '';
-    $search_params = array('attachment', 'image/%');
-    
-    if (!empty($search)) {
-        $search_conditions = " AND (p.ID LIKE %s OR p.post_title LIKE %s OR pm_file.meta_value LIKE %s)";
-        $search_params[] = '%' . $search . '%';
-        $search_params[] = '%' . $search . '%';
-        $search_params[] = '%' . $search . '%';
+    if ($tab === 'bad-names') {
+        $ids = altm_get_bad_name_image_ids($search, $cursor_id, $chunk_size);
+    } else {
+        $ids = altm_get_all_renaming_image_ids($search, $type_filter, $cursor_id, $chunk_size);
     }
 
-    // Build type filter conditions
-    $type_filter_conditions = '';
-    $type_filter_joins = '';
-    if ($type_filter === 'featured') {
-        // Filter for featured images only - join with postmeta to find images used as featured images
-        $type_filter_joins = " INNER JOIN {$wpdb->postmeta} pm_thumb ON pm_thumb.meta_key = '_thumbnail_id' AND pm_thumb.meta_value = CAST(p.ID AS CHAR)";
-    }
-
-    // Get images, then apply WPML filtering before pagination so totals stay accurate.
-    $query_params = $search_params;
-    
-    // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $search_conditions, $type_filter_conditions, and $type_filter_joins contain placeholders and are safely constructed
-    $images_query = $wpdb->prepare("
-        SELECT DISTINCT p.ID, p.post_title, pm_file.meta_value as filename
-        FROM {$wpdb->posts} p
-        LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
-        $type_filter_joins
-        WHERE p.post_type = %s 
-        AND p.post_mime_type LIKE %s
-        $search_conditions
-        $type_filter_conditions
-        ORDER BY p.ID DESC
-    ", $query_params);
-    // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above with $wpdb->prepare()
-    $images = $wpdb->get_results($images_query);
-
-    $processed_images = altm_build_renaming_image_rows($images);
-    $total = count($processed_images);
-    $total_pages = ceil(max(0, (int) $total) / max(1, $per_page));
-    $processed_images = array_slice($processed_images, $offset, $per_page);
+    $next_cursor = !empty($ids) ? end($ids) : 0;
 
     wp_send_json_success(array(
-        'images' => $processed_images,
-        'total' => intval($total),
-        'pages' => intval($total_pages),
-        'current_page' => intval($page)
+        'ids' => $ids,
+        'next_cursor' => $next_cursor ? (int) $next_cursor : 0,
+        'has_more' => count($ids) === min(100, max(1, $chunk_size)),
     ));
 }
-add_action('wp_ajax_altm_get_all_images_for_renaming', 'altm_get_all_images_for_renaming');
+add_action('wp_ajax_altm_get_bulk_rename_chunk_ids', 'altm_get_bulk_rename_chunk_ids');
 
 /**
  * AJAX handler to get image usage information

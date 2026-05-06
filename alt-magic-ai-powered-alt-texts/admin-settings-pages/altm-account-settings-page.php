@@ -7,6 +7,7 @@ if (!defined('ABSPATH')) {
 
 // Render plugin settings page
 function alt_magic_render_settings_page() {
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.5';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -14,7 +15,7 @@ function alt_magic_render_settings_page() {
         'alt-magic-media-popup-button-css',
         esc_url(plugin_dir_url(__FILE__) . '../css/altm-ai-settings-page.css'),
         array(), // Dependencies
-        '1.0.0'  // Version number
+        $asset_version  // Version number
     );
 
     // Register and enqueue the JavaScript file
@@ -22,7 +23,7 @@ function alt_magic_render_settings_page() {
         'alt-magic-settings-js',
         esc_url(plugin_dir_url(__FILE__) . '../scripts/altm-account-settings-page-script.js'),
         array('jquery'), // Dependencies
-        '1.0.0', // Version number
+        $asset_version, // Version number
         true // Load in footer
     );
     wp_enqueue_script('alt-magic-settings-js');
@@ -46,7 +47,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.4';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.5';
     $alt_text_language = get_option('alt_magic_language', 'en');
     $rename_language = get_option('alt_magic_rename_language', 'en');
     $onboarding_done = get_option('alt_magic_onboarding_done', 0);
