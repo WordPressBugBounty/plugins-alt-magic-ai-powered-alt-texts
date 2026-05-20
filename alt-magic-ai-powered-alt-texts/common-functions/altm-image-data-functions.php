@@ -626,11 +626,12 @@ function altm_get_bad_name_keywords() {
         
         // AI generated keywords
         'ai generated', 'midjourney', 'stability', 'openai', 'dalle', 'dreamlike',
+        'chatgpt', 'gemini',
         'ai-generated', 'ai_generated', 'ai_generated_', 'generated_',
         
         // Common generic terms
         'download', 'downloads', 'file', 'files',
-        'attachment', 'attachments', 'media', 'medias'
+        'attachment', 'attachments', 'media', 'medias', 'frame'
     );
 }
 
@@ -679,12 +680,27 @@ function altm_build_renaming_image_rows($results) {
             $image_url = wp_get_attachment_url($row->ID);
         }
 
+        $rename_history = get_post_meta($row->ID, '_altm_rename_history', true);
+        $rename_history = is_array($rename_history) ? $rename_history : array();
+        $latest_history_entry = !empty($rename_history[0]) && is_array($rename_history[0]) ? $rename_history[0] : array();
+        $latest_rename = !empty($latest_history_entry) && empty($latest_history_entry['undone']) ? $latest_history_entry : array();
+        $latest_source = isset($latest_rename['source']) ? (string) $latest_rename['source'] : '';
+        $history_label = '';
+
+        if (!empty($latest_rename)) {
+            $history_label = $latest_source === 'image_renaming_page_manual' ? __('Renamed', 'alt-magic') : __('AI renamed', 'alt-magic');
+        }
+
         $images[] = array(
             'ID' => (int) $row->ID,
             'post_title' => $row->post_title,
             'filename' => basename($row->filename ?: ''),
             'image_url' => $image_url,
             'original_url' => wp_get_attachment_url($row->ID),
+            'has_rename_history' => !empty($rename_history),
+            'can_undo_rename' => !empty($latest_rename),
+            'rename_history_label' => $history_label,
+            'latest_rename_old_filename' => isset($latest_rename['old_filename']) ? $latest_rename['old_filename'] : '',
         );
     }
 

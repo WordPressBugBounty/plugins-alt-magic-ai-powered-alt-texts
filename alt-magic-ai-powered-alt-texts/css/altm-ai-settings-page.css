@@ -125,6 +125,148 @@
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.altm-rename-undo-panel {
+    max-width: 560px;
+}
+
+.altm-rename-undo-help {
+    margin-left: 0;
+    max-width: 520px;
+}
+
+.altm-rename-undo-result {
+    display: none;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.altm-rename-undo-result.is-info {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.altm-rename-undo-result.is-success {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.altm-rename-undo-result.is-error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.altm-undo-rename-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.altm-undo-rename-modal.is-open {
+    display: flex;
+}
+
+.altm-undo-rename-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.altm-undo-rename-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(820px, calc(100vw - 48px));
+    max-height: min(680px, calc(100vh - 48px));
+    padding: 22px;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 22px 70px rgba(15, 23, 42, 0.28);
+}
+
+.altm-undo-rename-modal__header,
+.altm-undo-rename-modal__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.altm-undo-rename-modal__header h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.25;
+}
+
+.altm-undo-rename-modal__header p {
+    margin: 4px 0 0;
+    color: #64748b;
+}
+
+.altm-undo-rename-modal__close {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #111827;
+    font-size: 28px;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    appearance: none;
+}
+
+.altm-undo-rename-modal__close:hover,
+.altm-undo-rename-modal__close:focus {
+    background: #f3f4f6;
+    color: #111827;
+    text-decoration: none;
+    outline: none;
+}
+
+.altm-undo-rename-table-wrap {
+    width: 100%;
+    height: 390px;
+    margin-top: 14px;
+    overflow: auto;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    background: #ffffff;
+}
+
+.altm-undo-rename-table {
+    margin: 0;
+    table-layout: fixed;
+}
+
+.altm-undo-rename-table th,
+.altm-undo-rename-table td {
+    vertical-align: middle;
+    word-break: break-word;
+}
+
+.altm-undo-rename-table th:nth-child(1),
+.altm-undo-rename-table td:nth-child(1) {
+    width: 90px;
+}
+
+.altm-undo-rename-table th:nth-child(4),
+.altm-undo-rename-table td:nth-child(4) {
+    width: 120px;
+}
+
+.altm-undo-rename-modal__footer {
+    justify-content: center;
+    margin-top: 16px;
+}
+
 #alt-magic-settings-table textarea {
     margin-right: 12px;
     margin-bottom: 12px;

@@ -2,6 +2,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const settings = document.querySelectorAll('.alt-magic-setting');
     const onboardingModal = document.querySelector('.altm-onboarding-modal');
     const onboardingBanner = onboardingModal ? onboardingModal.querySelector('.altm-onboarding-banner') : null;
+    const openUndoRenameModalButton = document.getElementById('altm-open-undo-rename-modal');
+    const undoRenameModal = document.getElementById('altm-undo-rename-modal');
+    const closeUndoRenameModalButton = document.getElementById('altm-close-undo-rename-modal');
+    const undoRenameResult = document.getElementById('altm-undo-rename-modal-result');
+    const undoRenameTableBody = document.getElementById('altm-undo-rename-table-body');
+    const loadMoreRenamedImagesButton = document.getElementById('altm-load-more-renamed-images');
+    let undoRenameOffset = 0;
+    let undoRenameLoading = false;
 
     // Tabs toggle (WP nav-tab)
     const tabButtons = document.querySelectorAll('.nav-tab');
@@ -90,6 +98,222 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    if (openUndoRenameModalButton && undoRenameModal) {
+        openUndoRenameModalButton.addEventListener('click', function () {
+            openUndoRenameModal();
+        });
+    }
+
+    if (closeUndoRenameModalButton) {
+        closeUndoRenameModalButton.addEventListener('click', closeUndoRenameModal);
+    }
+
+    if (undoRenameModal) {
+        undoRenameModal.addEventListener('click', function (event) {
+            if (event.target.classList.contains('altm-undo-rename-modal__backdrop')) {
+                closeUndoRenameModal();
+            }
+        });
+    }
+
+    if (loadMoreRenamedImagesButton) {
+        loadMoreRenamedImagesButton.addEventListener('click', function () {
+            fetchRenamedImagesForUndo(false);
+        });
+    }
+
+    if (undoRenameTableBody) {
+        undoRenameTableBody.addEventListener('click', function (event) {
+            const button = event.target.closest('.altm-row-undo-rename-button');
+            if (!button) {
+                return;
+            }
+
+            const attachmentId = parseInt(button.getAttribute('data-attachment-id'), 10);
+            const oldFilename = button.getAttribute('data-old-filename') || '';
+
+            if (!attachmentId) {
+                return;
+            }
+
+            if (!window.confirm('Undo the latest Alt Magic rename and restore "' + oldFilename + '"?')) {
+                return;
+            }
+
+            undoLatestRename(attachmentId, button);
+        });
+    }
+
+    function openUndoRenameModal() {
+        undoRenameModal.classList.add('is-open');
+        undoRenameModal.setAttribute('aria-hidden', 'false');
+        undoRenameOffset = 0;
+        if (undoRenameResult) {
+            undoRenameResult.style.display = 'none';
+        }
+        fetchRenamedImagesForUndo(true);
+    }
+
+    function closeUndoRenameModal() {
+        undoRenameModal.classList.remove('is-open');
+        undoRenameModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function fetchRenamedImagesForUndo(reset) {
+        if (undoRenameLoading || !undoRenameTableBody) {
+            return;
+        }
+
+        undoRenameLoading = true;
+
+        if (reset) {
+            undoRenameOffset = 0;
+            undoRenameTableBody.innerHTML = '<tr><td colspan="4">Loading renamed images...</td></tr>';
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'altm_get_renamed_images_for_undo');
+        formData.append('nonce', altMagicSettings.renameUndoNonce || '');
+        formData.append('offset', undoRenameOffset);
+        formData.append('per_page', 25);
+
+        if (loadMoreRenamedImagesButton) {
+            loadMoreRenamedImagesButton.disabled = true;
+            loadMoreRenamedImagesButton.textContent = 'Loading...';
+        }
+
+        fetch(altMagicSettings.ajaxurl, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const items = data.data && Array.isArray(data.data.items) ? data.data.items : [];
+                    undoRenameOffset = data.data && data.data.next_offset ? parseInt(data.data.next_offset, 10) : undoRenameOffset;
+                    renderUndoRenameRows(items, reset);
+
+                    if (loadMoreRenamedImagesButton) {
+                        loadMoreRenamedImagesButton.style.display = data.data && data.data.has_more ? 'inline-block' : 'none';
+                    }
+                } else {
+                    const message = data.data && data.data.message ? data.data.message : 'Unable to undo rename.';
+                    showUndoRenameMessage(message, 'error');
+                    if (reset) {
+                        undoRenameTableBody.innerHTML = '<tr><td colspan="4">Unable to load renamed images.</td></tr>';
+                    }
+                }
+            })
+            .catch(() => {
+                showUndoRenameMessage('Unable to load renamed images. Please try again.', 'error');
+                if (reset) {
+                    undoRenameTableBody.innerHTML = '<tr><td colspan="4">Unable to load renamed images.</td></tr>';
+                }
+            })
+            .finally(() => {
+                undoRenameLoading = false;
+                if (loadMoreRenamedImagesButton) {
+                    loadMoreRenamedImagesButton.disabled = false;
+                    loadMoreRenamedImagesButton.textContent = 'Load more';
+                }
+            });
+    }
+
+    function renderUndoRenameRows(items, reset) {
+        if (reset) {
+            undoRenameTableBody.innerHTML = '';
+        }
+
+        if (!items.length && undoRenameTableBody.children.length === 0) {
+            undoRenameTableBody.innerHTML = '<tr><td colspan="4">No renamed images available to undo.</td></tr>';
+            return;
+        }
+
+        items.forEach(item => {
+            const row = document.createElement('tr');
+            row.setAttribute('data-attachment-id', item.attachment_id);
+            row.innerHTML =
+                '<td>' + escapeHtml(String(item.attachment_id || '')) + '</td>' +
+                '<td>' + escapeHtml(item.current_filename || '') + '</td>' +
+                '<td>' + escapeHtml(item.old_filename || '') + '</td>' +
+                '<td><button type="button" class="button altm-row-undo-rename-button" data-attachment-id="' + escapeHtml(String(item.attachment_id || '')) + '" data-old-filename="' + escapeHtml(item.old_filename || '') + '">Undo</button></td>';
+            undoRenameTableBody.appendChild(row);
+        });
+    }
+
+    function undoLatestRename(attachmentId, button) {
+        const originalText = button.textContent;
+        const formData = new FormData();
+        formData.append('action', 'altm_undo_image_rename');
+        formData.append('nonce', altMagicSettings.renameUndoNonce || '');
+        formData.append('attachment_id', attachmentId);
+
+        button.disabled = true;
+        button.textContent = 'Undoing...';
+        showUndoRenameMessage('Undoing latest rename...', 'info');
+
+        fetch(altMagicSettings.ajaxurl, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const row = button.closest('tr');
+                    if (row) {
+                        row.remove();
+                    }
+                    showUndoRenameMessage('Undo successful.', 'success');
+
+                    if (undoRenameTableBody && undoRenameTableBody.children.length === 0) {
+                        undoRenameTableBody.innerHTML = '<tr><td colspan="4">No renamed images available to undo.</td></tr>';
+                    }
+                } else {
+                    const message = data.data && data.data.message ? data.data.message : 'Unable to undo rename.';
+                    showUndoRenameMessage(message, 'error');
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            })
+            .catch(() => {
+                showUndoRenameMessage('Unable to undo rename. Please try again.', 'error');
+                button.disabled = false;
+                button.textContent = originalText;
+            });
+    }
+
+    function showUndoRenameMessage(message, type) {
+        if (!undoRenameResult) {
+            return;
+        }
+
+        undoRenameResult.textContent = message;
+        undoRenameResult.className = 'altm-rename-undo-result is-' + type;
+        undoRenameResult.style.display = 'block';
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value === undefined || value === null ? '' : String(value);
+        return div.innerHTML;
+    }
 
     function handlePrivateSiteToggle(element, key, value) {
         const originalCheckedState = element.checked;

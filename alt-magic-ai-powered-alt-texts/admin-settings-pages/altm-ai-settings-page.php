@@ -51,7 +51,8 @@ function alt_magic_render_ai_settings_page() {
     // Pass data to the JavaScript file
     wp_localize_script('alt-magic-ai-settings-js', 'altMagicSettings', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('alt_magic_save_settings')
+        'nonce' => wp_create_nonce('alt_magic_save_settings'),
+        'renameUndoNonce' => wp_create_nonce('altm_rename_image_nonce')
     ));
 
     // Fetch each option individually
@@ -465,6 +466,24 @@ function alt_magic_render_ai_settings_page() {
                             </td>
                         </tr>
                         <?php endif; ?>
+                        <tr class="setting-row">
+                            <th scope="row">
+                                <div class="setting-title">Undo Image Rename</div>
+                                <div class="setting-description">Review renamed images and restore one when needed</div>
+                            </th>
+                            <td>
+                                <div class="altm-rename-undo-panel">
+                                    <button type="button" class="button" id="altm-open-undo-rename-modal" <?php disabled($is_wpml_active); ?>>View Renamed Images</button>
+                                    <p class="alt-magic-setting-sub-label altm-rename-undo-help">
+                                        <?php if ($is_wpml_active) : ?>
+                                            <?php echo esc_html__('Undo rename is disabled while WPML is active because translated media can share file references.', 'alt-magic'); ?>
+                                        <?php else : ?>
+                                            <?php echo esc_html__('Use this only when a renamed image needs to be restored. The list shows images renamed by Alt Magic that can still be undone.', 'alt-magic'); ?>
+                                        <?php endif; ?>
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
                         <!-- <tr class="setting-row">
                             <th scope="row">
                                 <div class="setting-title">URL Redirections</div>
@@ -478,6 +497,39 @@ function alt_magic_render_ai_settings_page() {
                     </tbody>
                 </table>
             </form>
+            <div id="altm-undo-rename-modal" class="altm-undo-rename-modal" aria-hidden="true">
+                <div class="altm-undo-rename-modal__backdrop"></div>
+                <div class="altm-undo-rename-modal__panel" role="dialog" aria-modal="true" aria-labelledby="altm-undo-rename-modal-title">
+                    <div class="altm-undo-rename-modal__header">
+                        <div>
+                            <h2 id="altm-undo-rename-modal-title">Undo Image Renames</h2>
+                            <p>Restore images renamed by Alt Magic when needed.</p>
+                        </div>
+                        <button type="button" class="altm-undo-rename-modal__close" id="altm-close-undo-rename-modal" aria-label="Close undo image renames modal">×</button>
+                    </div>
+                    <div id="altm-undo-rename-modal-result" class="altm-rename-undo-result" aria-live="polite"></div>
+                    <div class="altm-undo-rename-table-wrap">
+                        <table class="widefat striped altm-undo-rename-table">
+                            <thead>
+                                <tr>
+                                    <th>Image ID</th>
+                                    <th>Image Name</th>
+                                    <th>Old Name</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="altm-undo-rename-table-body">
+                                <tr>
+                                    <td colspan="4">Loading renamed images...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="altm-undo-rename-modal__footer">
+                        <button type="button" class="button" id="altm-load-more-renamed-images">Load more</button>
+                    </div>
+                </div>
+            </div>
             <div id="alt-magic-settings-message"></div>
         </div>
     </div>

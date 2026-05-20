@@ -890,6 +890,7 @@ jQuery(document).ready(function ($) {
                     let $filenameCell = $row.find('.altm-filename-cell');
                     $filenameCell.data('filename', data.data.new_filename);
                     $filenameCell.find('div').text(data.data.new_filename);
+                    syncRenameRowData($row);
                 }
 
                 // Add green success icon on the right side of the edit button
@@ -938,6 +939,10 @@ jQuery(document).ready(function ($) {
                 });
             }, 5000);
         }
+    }
+
+    function syncRenameRowData($row) {
+        $row.find('.rename-image-btn, .edit-filename-btn').attr('data-filename', $row.find('.altm-filename-cell').data('filename') || '');
     }
 
     function openEditModal(image) {
@@ -1059,6 +1064,7 @@ jQuery(document).ready(function ($) {
 
                 // Update button data attributes
                 $row.find('.rename-image-btn, .edit-filename-btn').attr('data-filename', data.data.new_filename);
+                syncRenameRowData($row);
 
                 closeEditModal();
 

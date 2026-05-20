@@ -250,9 +250,166 @@ function altm_generate_combined_alt_and_filename($temp_file_path, $mime_type, $p
 
 
 /**
+ * Build an uploads URL for a metadata filename.
+ *
+ * WordPress size metadata normally stores only a basename, while some image
+ * converter plugins store source filenames in top-level or relative forms.
+ */
+function altm_build_upload_url_from_metadata_file($directory, $filename) {
+    if (empty($filename)) {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $filename)) {
+        return $filename;
+    }
+
+    $upload_dir = wp_upload_dir();
+    $filename = ltrim(str_replace('\\', '/', $filename), '/');
+
+    if (strpos($filename, '/') !== false) {
+        return trailingslashit($upload_dir['baseurl']) . $filename;
+    }
+
+    $basedir = wp_normalize_path($upload_dir['basedir']);
+    $directory = wp_normalize_path($directory);
+    $relative_dir = trim(str_replace($basedir, '', $directory), '/');
+
+    return trailingslashit($upload_dir['baseurl']) . ($relative_dir ? trailingslashit($relative_dir) : '') . $filename;
+}
+
+/**
+ * Build an absolute uploads path for a metadata filename.
+ */
+function altm_build_upload_path_from_metadata_file($directory, $filename) {
+    if (empty($filename) || preg_match('#^https?://#i', $filename)) {
+        return '';
+    }
+
+    $upload_dir = wp_upload_dir();
+    $filename = ltrim(str_replace('\\', '/', $filename), '/');
+
+    if (strpos($filename, '/') !== false) {
+        return trailingslashit(wp_normalize_path($upload_dir['basedir'])) . $filename;
+    }
+
+    return trailingslashit(wp_normalize_path($directory)) . $filename;
+}
+
+/**
+ * Generate the renamed filename for a converter source entry.
+ */
+function altm_get_renamed_metadata_source_file($old_source_file, $old_reference_file, $new_reference_file) {
+    if (empty($old_source_file) || empty($old_reference_file) || empty($new_reference_file)) {
+        return $old_source_file;
+    }
+
+    $old_source_file = str_replace('\\', '/', $old_source_file);
+    $source_pathinfo = pathinfo($old_source_file);
+    $source_dir = isset($source_pathinfo['dirname']) && $source_pathinfo['dirname'] !== '.' ? trailingslashit($source_pathinfo['dirname']) : '';
+    $source_base = isset($source_pathinfo['filename']) ? $source_pathinfo['filename'] : '';
+    $source_ext = isset($source_pathinfo['extension']) && $source_pathinfo['extension'] !== '' ? '.' . $source_pathinfo['extension'] : '';
+
+    $old_reference_base = pathinfo($old_reference_file, PATHINFO_FILENAME);
+    $new_reference_base = pathinfo($new_reference_file, PATHINFO_FILENAME);
+
+    if ($source_base !== '' && $old_reference_base !== '' && strpos($source_base, $old_reference_base) === 0) {
+        return $source_dir . $new_reference_base . substr($source_base, strlen($old_reference_base)) . $source_ext;
+    }
+
+    if (basename($old_source_file) === basename($old_reference_file)) {
+        return $source_dir . basename($new_reference_file);
+    }
+
+    // Fallback for converter files that keep a different suffix but still need to follow the new basename.
+    return $source_dir . $new_reference_base . $source_ext;
+}
+
+/**
+ * Track one old URL -> new URL replacement pair using synthetic size keys.
+ */
+function altm_add_metadata_source_reference_pair(&$old_image_urls, &$source_new_image_urls, $key, $old_url, $new_url) {
+    if (empty($old_url) || empty($new_url) || $old_url === $new_url) {
+        return;
+    }
+
+    if (in_array($old_url, $old_image_urls, true) && in_array($new_url, $source_new_image_urls, true)) {
+        return;
+    }
+
+    $key = sanitize_key($key);
+    if (empty($key)) {
+        $key = 'source_' . md5($old_url);
+    }
+
+    if (isset($old_image_urls[$key]) || isset($source_new_image_urls[$key])) {
+        $key .= '_' . substr(md5($old_url . $new_url), 0, 8);
+    }
+
+    $old_image_urls[$key] = $old_url;
+    $source_new_image_urls[$key] = $new_url;
+}
+
+/**
+ * Rename and update converter-provided metadata source files.
+ */
+function altm_update_metadata_sources(&$metadata_node, $directory, $old_reference_file, $new_reference_file, &$old_image_urls, &$source_new_image_urls, &$renamed_source_files, $wp_filesystem, $context_key) {
+    if (empty($metadata_node['sources']) || !is_array($metadata_node['sources'])) {
+        return;
+    }
+
+    foreach ($metadata_node['sources'] as $source_type => &$source_data) {
+        if (empty($source_data['file']) || !is_string($source_data['file'])) {
+            continue;
+        }
+
+        $old_source_file = $source_data['file'];
+        $new_source_file = altm_get_renamed_metadata_source_file($old_source_file, $old_reference_file, $new_reference_file);
+
+        if (empty($new_source_file) || $old_source_file === $new_source_file) {
+            continue;
+        }
+
+        $old_source_url = altm_build_upload_url_from_metadata_file($directory, $old_source_file);
+        $new_source_url = altm_build_upload_url_from_metadata_file($directory, $new_source_file);
+        altm_add_metadata_source_reference_pair(
+            $old_image_urls,
+            $source_new_image_urls,
+            'source_' . $context_key . '_' . sanitize_key($source_type),
+            $old_source_url,
+            $new_source_url
+        );
+
+        $old_source_path = altm_build_upload_path_from_metadata_file($directory, $old_source_file);
+        $new_source_path = altm_build_upload_path_from_metadata_file($directory, $new_source_file);
+
+        if ($old_source_path && $new_source_path && $old_source_path !== $new_source_path) {
+            $source_map_key = wp_normalize_path($old_source_path);
+
+            if (isset($renamed_source_files[$source_map_key])) {
+                altm_log("Converter source metadata synced from previously renamed source - Context: $context_key");
+            } elseif ($wp_filesystem && $wp_filesystem->exists($old_source_path)) {
+                if ($wp_filesystem->move($old_source_path, $new_source_path, true)) {
+                    $renamed_source_files[$source_map_key] = $new_source_path;
+                    altm_log("Converter source renamed - Context: $context_key, Type: $source_type");
+                } else {
+                    altm_log("Failed to rename converter source - Context: $context_key, Path: $old_source_path");
+                }
+            } elseif ($wp_filesystem && $wp_filesystem->exists($new_source_path)) {
+                $renamed_source_files[$source_map_key] = $new_source_path;
+                altm_log("Converter source already present at renamed path - Context: $context_key");
+            }
+        }
+
+        $source_data['file'] = $new_source_file;
+    }
+    unset($source_data);
+}
+
+/**
  * Update all references to an image
  */
-function altm_update_image_references($attachment_id, $old_image_urls) {
+function altm_update_image_references($attachment_id, $old_image_urls, $known_new_image_urls = array()) {
     global $wpdb;
     
     altm_log("=== REFERENCE UPDATE OVERVIEW ===");
@@ -273,6 +430,10 @@ function altm_update_image_references($attachment_id, $old_image_urls) {
         }
     } else {
         $new_image_urls['full'] = $new_attachment_url;
+    }
+
+    if (!empty($known_new_image_urls) && is_array($known_new_image_urls)) {
+        $new_image_urls = array_merge($new_image_urls, $known_new_image_urls);
     }
     
     // Track all updated post IDs
@@ -618,11 +779,13 @@ function altm_build_rename_history_entry($attachment_id, $directory, $extension,
 		'old_metadata' => array(
 			'top_file' => isset($old_metadata['file']) ? $old_metadata['file'] : '',
 			'original_image' => isset($old_metadata['original_image']) ? $old_metadata['original_image'] : '',
+			'sources' => isset($old_metadata['sources']) && is_array($old_metadata['sources']) ? $old_metadata['sources'] : array(),
 			'sizes' => isset($old_metadata['sizes']) && is_array($old_metadata['sizes']) ? $old_metadata['sizes'] : array(),
 		),
 		'new_metadata' => array(
 			'top_file' => isset($new_metadata['file']) ? $new_metadata['file'] : '',
 			'original_image' => isset($new_metadata['original_image']) ? $new_metadata['original_image'] : '',
+			'sources' => isset($new_metadata['sources']) && is_array($new_metadata['sources']) ? $new_metadata['sources'] : array(),
 			'sizes' => isset($new_metadata['sizes']) && is_array($new_metadata['sizes']) ? $new_metadata['sizes'] : array(),
 		),
 	);
@@ -638,6 +801,450 @@ function altm_build_refs_history_entry($old_image_urls, $new_image_urls, $update
 		'options' => $options_snapshot,
 		'redirection' => $redirection_info,
 	);
+}
+
+function altm_mark_rename_history_entry_undone($attachment_id, $history_index = 0, $undo_details = array()) {
+	$rename_history = altm_get_rename_history($attachment_id);
+	$refs_history = altm_get_rename_refs_history($attachment_id);
+	$history_index = absint($history_index);
+	$undo_data = array_merge(
+		array(
+			'undone' => true,
+			'undone_at' => time(),
+			'undone_by' => get_current_user_id(),
+		),
+		is_array($undo_details) ? $undo_details : array()
+	);
+
+	if (!empty($rename_history[$history_index]) && is_array($rename_history[$history_index])) {
+		$rename_history[$history_index]['undone'] = true;
+		$rename_history[$history_index]['undone_at'] = $undo_data['undone_at'];
+		$rename_history[$history_index]['undone_by'] = $undo_data['undone_by'];
+		$rename_history[$history_index]['undo_details'] = $undo_data;
+		update_post_meta($attachment_id, '_altm_rename_history', altm_cap_history_array($rename_history, 10));
+	}
+
+	if (!empty($refs_history[$history_index]) && is_array($refs_history[$history_index])) {
+		$refs_history[$history_index]['undone'] = true;
+		$refs_history[$history_index]['undone_at'] = $undo_data['undone_at'];
+		$refs_history[$history_index]['undone_by'] = $undo_data['undone_by'];
+		$refs_history[$history_index]['undo_details'] = $undo_data;
+		update_post_meta($attachment_id, '_altm_rename_refs_history', altm_cap_history_array($refs_history, 10));
+	}
+}
+
+function altm_get_latest_undoable_rename_entry($rename_history) {
+	if (empty($rename_history[0]) || !is_array($rename_history[0]) || !empty($rename_history[0]['undone'])) {
+		return array();
+	}
+
+	return array(
+		'index' => 0,
+		'entry' => $rename_history[0],
+		'refs_index' => 0,
+	);
+}
+
+function altm_get_renamed_images_for_undo() {
+	if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_rename_image_nonce')) {
+		wp_send_json_error(array('message' => 'Invalid nonce.'));
+		return;
+	}
+
+	if (!current_user_can('manage_options')) {
+		wp_send_json_error(array('message' => 'Insufficient permissions.'));
+		return;
+	}
+
+	if (function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+		wp_send_json_error(array('message' => 'Undo rename is not available when WPML is active.'));
+		return;
+	}
+
+	global $wpdb;
+
+	$offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
+	$per_page = isset($_POST['per_page']) ? absint($_POST['per_page']) : 25;
+	$per_page = min(25, max(1, $per_page));
+	$scan_limit = 100;
+	$max_scans = 10;
+	$items = array();
+	$scans = 0;
+	$has_more = false;
+	$next_offset = $offset;
+
+	while (!$has_more && $scans < $max_scans) {
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT pm.post_id, pm.meta_value
+				FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE pm.meta_key = %s
+				AND p.post_type = %s
+				ORDER BY pm.post_id DESC
+				LIMIT %d OFFSET %d",
+				'_altm_rename_history',
+				'attachment',
+				$scan_limit,
+				$next_offset
+			)
+		);
+
+		if (empty($rows)) {
+			$has_more = false;
+			break;
+		}
+
+		$scans++;
+
+		foreach ($rows as $row_index => $row) {
+			$current_row_offset = $next_offset + $row_index;
+			$rename_history = maybe_unserialize($row->meta_value);
+			$undoable_entry = altm_get_latest_undoable_rename_entry(is_array($rename_history) ? $rename_history : array());
+
+			if (empty($undoable_entry['entry']) || !is_array($undoable_entry['entry'])) {
+				continue;
+			}
+
+			$entry = $undoable_entry['entry'];
+			$attachment_id = (int) $row->post_id;
+			$current_file = get_attached_file($attachment_id);
+			$current_filename = $current_file ? basename($current_file) : (!empty($entry['new_filename']) ? basename($entry['new_filename']) : '');
+			$old_filename = !empty($entry['old_filename']) ? basename($entry['old_filename']) : '';
+
+			if ($current_filename === '' || $old_filename === '') {
+				continue;
+			}
+
+			if ($current_filename === $old_filename) {
+				continue;
+			}
+
+			if (count($items) >= $per_page) {
+				$has_more = true;
+				$next_offset = $current_row_offset;
+				break;
+			}
+
+			$items[] = array(
+				'attachment_id' => $attachment_id,
+				'current_filename' => $current_filename,
+				'old_filename' => $old_filename,
+			);
+		}
+
+		if (!$has_more) {
+			$next_offset += count($rows);
+		}
+
+		if (count($rows) < $scan_limit) {
+			break;
+		}
+	}
+
+	wp_send_json_success(array(
+		'items' => $items,
+		'next_offset' => $next_offset,
+		'has_more' => $has_more,
+	));
+}
+
+function altm_get_history_metadata_file_list($metadata) {
+	$files = array();
+
+	if (!is_array($metadata)) {
+		return $files;
+	}
+
+	if (!empty($metadata['top_file'])) {
+		$files['full'] = basename($metadata['top_file']);
+	}
+
+	if (!empty($metadata['original_image'])) {
+		$files['original_image'] = basename($metadata['original_image']);
+	}
+
+	if (!empty($metadata['sources']) && is_array($metadata['sources'])) {
+		foreach ($metadata['sources'] as $source_type => $source_data) {
+			if (!empty($source_data['file'])) {
+				$files['source_' . sanitize_key($source_type)] = $source_data['file'];
+			}
+		}
+	}
+
+	if (!empty($metadata['sizes']) && is_array($metadata['sizes'])) {
+		foreach ($metadata['sizes'] as $size_name => $size_data) {
+			if (!empty($size_data['file'])) {
+				$files['size_' . $size_name] = $size_data['file'];
+			}
+
+			if (!empty($size_data['sources']) && is_array($size_data['sources'])) {
+				foreach ($size_data['sources'] as $source_type => $source_data) {
+					if (!empty($source_data['file'])) {
+						$files['size_source_' . $size_name . '_' . sanitize_key($source_type)] = $source_data['file'];
+					}
+				}
+			}
+		}
+	}
+
+	return $files;
+}
+
+function altm_get_undo_file_pairs($directory, $latest_entry) {
+	$pairs = array();
+	$used_sources = array();
+
+	if (empty($latest_entry['new_metadata']) || empty($latest_entry['old_metadata'])) {
+		return $pairs;
+	}
+
+	$new_files = altm_get_history_metadata_file_list($latest_entry['new_metadata']);
+	$old_files = altm_get_history_metadata_file_list($latest_entry['old_metadata']);
+
+	foreach ($new_files as $key => $new_file) {
+		if (empty($old_files[$key])) {
+			continue;
+		}
+
+		$new_path = altm_build_upload_path_from_metadata_file($directory, $new_file);
+		$old_path = altm_build_upload_path_from_metadata_file($directory, $old_files[$key]);
+
+		if (!$new_path || !$old_path || $new_path === $old_path) {
+			continue;
+		}
+
+		$normalized_new_path = wp_normalize_path($new_path);
+		if (isset($used_sources[$normalized_new_path])) {
+			altm_log('Undo skipped duplicate source file mapping for: ' . basename($new_path));
+			continue;
+		}
+
+		$used_sources[$normalized_new_path] = true;
+
+		$pairs[$normalized_new_path . '|' . wp_normalize_path($old_path)] = array(
+			'from' => $new_path,
+			'to' => $old_path,
+			'key' => $key,
+		);
+	}
+
+	return array_values($pairs);
+}
+
+function altm_restore_metadata_from_rename_history($current_metadata, $old_metadata) {
+	$restored_metadata = is_array($current_metadata) ? $current_metadata : array();
+
+	if (!empty($old_metadata['top_file'])) {
+		$restored_metadata['file'] = $old_metadata['top_file'];
+	}
+
+	if (array_key_exists('original_image', $old_metadata)) {
+		if (!empty($old_metadata['original_image'])) {
+			$restored_metadata['original_image'] = $old_metadata['original_image'];
+		} else {
+			unset($restored_metadata['original_image']);
+		}
+	}
+
+	if (array_key_exists('sources', $old_metadata)) {
+		if (!empty($old_metadata['sources']) && is_array($old_metadata['sources'])) {
+			$restored_metadata['sources'] = $old_metadata['sources'];
+		} else {
+			unset($restored_metadata['sources']);
+		}
+	}
+
+	if (!empty($old_metadata['sizes']) && is_array($old_metadata['sizes'])) {
+		$restored_metadata['sizes'] = $old_metadata['sizes'];
+	}
+
+	return $restored_metadata;
+}
+
+function altm_reverse_rename_references($refs_entry) {
+	$updated_post_ids = array();
+	$updated_excerpt_ids = array();
+	$updated_meta_ids = array();
+
+	if (empty($refs_entry['old_image_urls']) || empty($refs_entry['new_image_urls']) || !is_array($refs_entry['old_image_urls']) || !is_array($refs_entry['new_image_urls'])) {
+		return array(
+			'post_ids' => array(),
+			'excerpt_ids' => array(),
+			'meta_ids' => array(),
+		);
+	}
+
+	foreach ($refs_entry['new_image_urls'] as $size => $new_url) {
+		if (empty($refs_entry['old_image_urls'][$size])) {
+			continue;
+		}
+
+		$old_url = $refs_entry['old_image_urls'][$size];
+		$new_relative_url = altm_get_relative_url($new_url);
+		$old_relative_url = altm_get_relative_url($old_url);
+
+		if (!$new_relative_url || !$old_relative_url || $new_relative_url === $old_relative_url) {
+			continue;
+		}
+
+		altm_log("Undo references for size: $size");
+		$updated_post_ids = array_merge($updated_post_ids, altm_update_post_content($new_relative_url, $old_relative_url));
+		$updated_excerpt_ids = array_merge($updated_excerpt_ids, altm_update_post_excerpts($new_relative_url, $old_relative_url));
+		$updated_meta_ids = array_merge($updated_meta_ids, altm_update_post_meta($new_relative_url, $old_relative_url));
+	}
+
+	return array(
+		'post_ids' => array_values(array_unique($updated_post_ids)),
+		'excerpt_ids' => array_values(array_unique($updated_excerpt_ids)),
+		'meta_ids' => array_values(array_unique($updated_meta_ids)),
+	);
+}
+
+function altm_undo_image_rename() {
+	altm_log('Undo image rename process started...');
+
+	if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_rename_image_nonce')) {
+		altm_log('Invalid undo image rename nonce.');
+		wp_send_json_error(array('message' => 'Invalid nonce.'));
+		return;
+	}
+
+	if (!current_user_can('upload_files')) {
+		altm_log('Insufficient user permissions for undo image rename.');
+		wp_send_json_error(array('message' => 'Insufficient permissions.'));
+		return;
+	}
+
+	if (function_exists('altm_is_wpml_active') && altm_is_wpml_active()) {
+		wp_send_json_error(array('message' => 'Undo rename is not available when WPML is active.'));
+		return;
+	}
+
+	$attachment_id = isset($_POST['attachment_id']) ? absint($_POST['attachment_id']) : 0;
+	if (!$attachment_id) {
+		wp_send_json_error(array('message' => 'Missing attachment ID.'));
+		return;
+	}
+
+	$post = get_post($attachment_id);
+	if (!$post || $post->post_type !== 'attachment') {
+		wp_send_json_error(array('message' => 'Invalid attachment ID.'));
+		return;
+	}
+
+	$rename_history = altm_get_rename_history($attachment_id);
+	$undoable_entry = altm_get_latest_undoable_rename_entry($rename_history);
+	if (empty($undoable_entry['entry']) || !is_array($undoable_entry['entry'])) {
+		wp_send_json_error(array('message' => 'No rename history found for this image.'));
+		return;
+	}
+
+	$latest_entry = $undoable_entry['entry'];
+	$refs_history = altm_get_rename_refs_history($attachment_id);
+	$refs_index = isset($undoable_entry['refs_index']) ? (int) $undoable_entry['refs_index'] : 0;
+	$refs_entry = !empty($refs_history[$refs_index]) && is_array($refs_history[$refs_index]) && empty($refs_history[$refs_index]['undone']) ? $refs_history[$refs_index] : array();
+	$directory = !empty($latest_entry['directory']) ? $latest_entry['directory'] : dirname((string) get_attached_file($attachment_id));
+
+	if (empty($latest_entry['old_filename']) || empty($latest_entry['new_filename']) || empty($latest_entry['old_filepath']) || empty($latest_entry['new_filepath'])) {
+		wp_send_json_error(array('message' => 'Rename history is incomplete for this image.'));
+		return;
+	}
+
+	$current_file = get_attached_file($attachment_id);
+	if ($current_file && basename($current_file) !== basename($latest_entry['new_filename'])) {
+		wp_send_json_error(array('message' => 'This image has changed since the last rename. Undo cannot be applied safely.'));
+		return;
+	}
+
+	global $wp_filesystem;
+	require_once(ABSPATH . 'wp-admin/includes/file.php');
+
+	if (!WP_Filesystem(false, dirname($latest_entry['new_filepath']))) {
+		wp_send_json_error(array('message' => 'Failed to initialize filesystem.'));
+		return;
+	}
+
+	$file_pairs = altm_get_undo_file_pairs($directory, $latest_entry);
+	if (empty($file_pairs)) {
+		$file_pairs[] = array(
+			'from' => $latest_entry['new_filepath'],
+			'to' => $latest_entry['old_filepath'],
+			'key' => 'full',
+		);
+	}
+
+	foreach ($file_pairs as $pair) {
+		$from = $pair['from'];
+		$to = $pair['to'];
+
+		if (!$wp_filesystem->exists($from)) {
+			altm_log('Undo rename source missing, skipping file move: ' . $from);
+			continue;
+		}
+
+		if ($wp_filesystem->exists($to)) {
+			wp_send_json_error(array('message' => 'Cannot undo rename because the original filename already exists: ' . basename($to)));
+			return;
+		}
+	}
+
+	foreach ($file_pairs as $pair) {
+		$from = $pair['from'];
+		$to = $pair['to'];
+
+		if (!$wp_filesystem->exists($from)) {
+			continue;
+		}
+
+		if (!$wp_filesystem->move($from, $to, true)) {
+			wp_send_json_error(array('message' => 'Failed to restore file: ' . basename($from)));
+			return;
+		}
+
+		altm_log('Undo file restored: ' . basename($from) . ' -> ' . basename($to));
+	}
+
+	update_post_meta($attachment_id, '_wp_attached_file', _wp_relative_upload_path($latest_entry['old_filepath']));
+
+	$current_metadata = wp_get_attachment_metadata($attachment_id);
+	$restored_metadata = altm_restore_metadata_from_rename_history($current_metadata, isset($latest_entry['old_metadata']) ? $latest_entry['old_metadata'] : array());
+	wp_update_attachment_metadata($attachment_id, $restored_metadata);
+
+	$post_update_data = array(
+		'ID' => $attachment_id,
+		'post_title' => isset($latest_entry['old_title']) ? $latest_entry['old_title'] : pathinfo($latest_entry['old_filename'], PATHINFO_FILENAME),
+		'post_name' => isset($latest_entry['old_slug']) ? $latest_entry['old_slug'] : sanitize_title(pathinfo($latest_entry['old_filename'], PATHINFO_FILENAME)),
+	);
+
+	if (!empty($latest_entry['old_guid'])) {
+		$post_update_data['guid'] = $latest_entry['old_guid'];
+	}
+
+	wp_update_post($post_update_data);
+	$updated_posts = altm_reverse_rename_references($refs_entry);
+
+	altm_mark_rename_history_entry_undone($attachment_id, isset($undoable_entry['index']) ? (int) $undoable_entry['index'] : 0, array(
+		'restored_filename' => $latest_entry['old_filename'],
+		'undone_filename' => $latest_entry['new_filename'],
+		'updated_posts' => $updated_posts,
+	));
+	$remaining_undoable_entry = altm_get_latest_undoable_rename_entry(altm_get_rename_history($attachment_id));
+
+	wp_cache_delete($attachment_id, 'posts');
+	clean_post_cache($attachment_id);
+
+	altm_log('Undo image rename finished for attachment ' . $attachment_id);
+
+	wp_send_json_success(array(
+		'message' => 'Image rename undone successfully.',
+		'attachment_id' => $attachment_id,
+		'old_filename' => $latest_entry['new_filename'],
+		'new_filename' => $latest_entry['old_filename'],
+		'can_undo_rename' => !empty($remaining_undoable_entry['entry']),
+		'rename_history_label' => !empty($remaining_undoable_entry['entry']) ? 'Renamed' : 'Rename undone',
+		'updated_posts' => $updated_posts,
+	));
 }
 
 
@@ -827,6 +1434,7 @@ function altm_rename_image_file() {
     $old_attachment_url = wp_get_attachment_url($attachment_id);
     $old_metadata = wp_get_attachment_metadata($attachment_id);
     $old_image_urls = array();
+    $source_new_image_urls = array();
     
     // Collect all size URLs
     if (wp_attachment_is_image($attachment_id)) {
@@ -889,62 +1497,94 @@ function altm_rename_image_file() {
     wp_update_post($post_update_data);
     altm_log("Post data updated - Title: '$new_title', Slug: '$new_slug'" . (isset($post_update_data['guid']) ? ", GUID: '{$post_update_data['guid']}'" : ""));
     
-    // Handle thumbnails if this is an image
-    if (wp_attachment_is_image($attachment_id) && !empty($old_metadata['sizes'])) {
-        altm_log("Processing thumbnails - Found " . count($old_metadata['sizes']) . " thumbnail sizes");
-        $new_metadata = $old_metadata;
+    // Handle image metadata, thumbnails, and converter-provided source files.
+    if (wp_attachment_is_image($attachment_id)) {
+        $new_metadata = is_array($old_metadata) ? $old_metadata : array();
         $renamed_thumbnail_map = array();
-        
-        foreach ($old_metadata['sizes'] as $size_name => $size_data) {
-            $old_thumb_path = trailingslashit($directory) . $size_data['file'];
-            $old_thumb_filename = isset($size_data['file']) ? $size_data['file'] : '';
-            
-            // Generate new thumbnail filename
-            $size_pathinfo = pathinfo($size_data['file']);
-            $size_extension = $size_pathinfo['extension'];
-            
-            // Extract the size suffix (e.g., "-289x300" from "Screenshot-2025-07-05-at-12.34.36-AM-289x300.png")
-            $old_basename = pathinfo($old_filename, PATHINFO_FILENAME); // Remove extension from old filename
-            $size_basename = $size_pathinfo['filename']; // Remove extension from size filename
-            
-            // Find the size suffix by removing the old filename from the size basename
-            $size_suffix = str_replace($old_basename, '', $size_basename);
-            
-            // Create new thumbnail filename
-            $new_basename = pathinfo($new_filename, PATHINFO_FILENAME); // Remove extension from new filename
-            $new_thumb_filename = $new_basename . $size_suffix . '.' . $size_extension;
-            
-            altm_log("Thumbnail filename generation - Size suffix: '$size_suffix'");
-            $new_thumb_path = trailingslashit($directory) . $new_thumb_filename;
+        $renamed_source_files = array();
 
-            // Some WordPress size labels can point to the same physical file (for example
-            // large and medium_large). If we already renamed that physical file for an earlier
-            // size key, only the metadata needs to be updated here.
-            if ($old_thumb_filename && isset($renamed_thumbnail_map[$old_thumb_filename])) {
-                $new_metadata['sizes'][$size_name]['file'] = $renamed_thumbnail_map[$old_thumb_filename];
-                altm_log("Thumbnail metadata synced from previously renamed sibling - Size: $size_name");
-                continue;
-            }
-            
-            // Rename thumbnail if it exists using WordPress Filesystem API
-            if ($wp_filesystem->exists($old_thumb_path)) {
-                if ($wp_filesystem->move($old_thumb_path, $new_thumb_path, true)) {
+        altm_update_metadata_sources(
+            $new_metadata,
+            $directory,
+            $old_filename,
+            $new_filename,
+            $old_image_urls,
+            $source_new_image_urls,
+            $renamed_source_files,
+            $wp_filesystem,
+            'full'
+        );
+        
+        if (!empty($old_metadata['sizes'])) {
+            altm_log("Processing thumbnails - Found " . count($old_metadata['sizes']) . " thumbnail sizes");
+
+            foreach ($old_metadata['sizes'] as $size_name => $size_data) {
+                if (empty($size_data['file'])) {
+                    continue;
+                }
+
+                $old_thumb_path = trailingslashit($directory) . $size_data['file'];
+                $old_thumb_filename = isset($size_data['file']) ? $size_data['file'] : '';
+                
+                // Generate new thumbnail filename
+                $size_pathinfo = pathinfo($size_data['file']);
+                $size_extension = $size_pathinfo['extension'];
+                
+                // Extract the size suffix (e.g., "-289x300" from "Screenshot-2025-07-05-at-12.34.36-AM-289x300.png")
+                $old_basename = pathinfo($old_filename, PATHINFO_FILENAME); // Remove extension from old filename
+                $size_basename = $size_pathinfo['filename']; // Remove extension from size filename
+                
+                // Find the size suffix by removing the old filename from the size basename
+                $size_suffix = str_replace($old_basename, '', $size_basename);
+                
+                // Create new thumbnail filename
+                $new_basename = pathinfo($new_filename, PATHINFO_FILENAME); // Remove extension from new filename
+                $new_thumb_filename = $new_basename . $size_suffix . '.' . $size_extension;
+                
+                altm_log("Thumbnail filename generation - Size suffix: '$size_suffix'");
+                $new_thumb_path = trailingslashit($directory) . $new_thumb_filename;
+
+                // Some WordPress size labels can point to the same physical file (for example
+                // large and medium_large). If we already renamed that physical file for an earlier
+                // size key, only the metadata needs to be updated here.
+                if ($old_thumb_filename && isset($renamed_thumbnail_map[$old_thumb_filename])) {
+                    $new_metadata['sizes'][$size_name]['file'] = $renamed_thumbnail_map[$old_thumb_filename];
+                    altm_log("Thumbnail metadata synced from previously renamed sibling - Size: $size_name");
+                } elseif ($wp_filesystem->exists($old_thumb_path)) {
+                    // Rename thumbnail if it exists using WordPress Filesystem API
+                    if ($wp_filesystem->move($old_thumb_path, $new_thumb_path, true)) {
+                        $new_metadata['sizes'][$size_name]['file'] = $new_thumb_filename;
+                        if ($old_thumb_filename) {
+                            $renamed_thumbnail_map[$old_thumb_filename] = $new_thumb_filename;
+                        }
+                        altm_log("Thumbnail renamed - Size: $size_name");
+                    } else {
+                        altm_log("Failed to rename thumbnail - Size: $size_name, Path: $old_thumb_path");
+                    }
+                } elseif ($wp_filesystem->exists($new_thumb_path)) {
                     $new_metadata['sizes'][$size_name]['file'] = $new_thumb_filename;
                     if ($old_thumb_filename) {
                         $renamed_thumbnail_map[$old_thumb_filename] = $new_thumb_filename;
                     }
-                    altm_log("Thumbnail renamed - Size: $size_name");
-                } else {
-                    altm_log("Failed to rename thumbnail - Size: $size_name, Path: $old_thumb_path");
+                    altm_log("Thumbnail already present at renamed path - Size: $size_name");
                 }
-            } elseif ($wp_filesystem->exists($new_thumb_path)) {
-                $new_metadata['sizes'][$size_name]['file'] = $new_thumb_filename;
-                if ($old_thumb_filename) {
-                    $renamed_thumbnail_map[$old_thumb_filename] = $new_thumb_filename;
-                }
-                altm_log("Thumbnail already present at renamed path - Size: $size_name");
+
+                altm_update_metadata_sources(
+                    $new_metadata['sizes'][$size_name],
+                    $directory,
+                    $old_thumb_filename,
+                    $new_metadata['sizes'][$size_name]['file'],
+                    $old_image_urls,
+                    $source_new_image_urls,
+                    $renamed_source_files,
+                    $wp_filesystem,
+                    $size_name
+                );
             }
+        } else {
+            altm_log("Processing thumbnails - No thumbnail sizes found");
         }
+
         // Ensure the top-level metadata 'file' points to the new main file so WP builds correct srcset 'full' candidate
         altm_log("Ensuring top-level metadata 'file' points to the new main file");
         $relative_new_file = _wp_relative_upload_path($new_filepath);
@@ -954,18 +1594,37 @@ function altm_rename_image_file() {
 
         // Handle WordPress 5.3+ scaled images
         if (!empty($old_metadata['original_image'])) {
-            altm_log("Processing scaled image");
-            $old_original_path = trailingslashit($directory) . $old_metadata['original_image'];
-            $new_original_filename = str_replace('-scaled.' . $extension, '-original.' . $extension, $new_filename);
+            altm_log("Processing original image");
+            $old_original_filename = basename($old_metadata['original_image']);
+            $old_original_path = trailingslashit($directory) . $old_original_filename;
+            $old_original_extension = pathinfo($old_original_filename, PATHINFO_EXTENSION);
+            $new_original_base = pathinfo($new_filename, PATHINFO_FILENAME);
+            $new_original_filename = $new_original_base . ($old_original_extension ? '.' . $old_original_extension : '');
+
+            // Avoid overwriting the newly renamed main file when the original image uses the same extension.
+            if ($new_original_filename === $new_filename) {
+                $new_original_filename = $new_original_base . '-original' . ($old_original_extension ? '.' . $old_original_extension : '');
+            }
+
             $new_original_path = trailingslashit($directory) . $new_original_filename;
             
             if ($wp_filesystem->exists($old_original_path)) {
                 if ($wp_filesystem->move($old_original_path, $new_original_path, true)) {
                     $new_metadata['original_image'] = $new_original_filename;
-                    altm_log("Scaled image renamed");
+                    altm_add_metadata_source_reference_pair(
+                        $old_image_urls,
+                        $source_new_image_urls,
+                        'original_image',
+                        altm_build_upload_url_from_metadata_file($directory, $old_original_filename),
+                        altm_build_upload_url_from_metadata_file($directory, $new_original_filename)
+                    );
+                    altm_log("Original image renamed");
                 } else {
-                    altm_log("Failed to rename scaled image - Path: $old_original_path");
+                    altm_log("Failed to rename original image - Path: $old_original_path");
                 }
+            } elseif ($wp_filesystem->exists($new_original_path)) {
+                $new_metadata['original_image'] = $new_original_filename;
+                altm_log("Original image already present at renamed path");
             }
         }
         
@@ -975,7 +1634,7 @@ function altm_rename_image_file() {
     
     // Update references in content and meta
     altm_log("Starting reference updates - Found " . count($old_image_urls) . " URL sizes to update");
-	$reference_update_result = altm_update_image_references($attachment_id, $old_image_urls);
+	$reference_update_result = altm_update_image_references($attachment_id, $old_image_urls, $source_new_image_urls);
     
     // Clear caches
     wp_cache_delete($attachment_id, 'posts');
@@ -1086,3 +1745,5 @@ function altm_rename_image_file() {
 
 // Register AJAX action
 add_action('wp_ajax_altm_rename_image', 'altm_rename_image_file');
+add_action('wp_ajax_altm_undo_image_rename', 'altm_undo_image_rename');
+add_action('wp_ajax_altm_get_renamed_images_for_undo', 'altm_get_renamed_images_for_undo');
