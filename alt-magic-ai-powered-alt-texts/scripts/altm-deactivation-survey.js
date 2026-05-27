@@ -20,14 +20,16 @@
         reasonInputs: null,
         surveyStep: null,
         pricingStep: null,
+        pricingStepHeading: null,
         detailsSection: null,
         detailsTextarea: null,
         continueButton: null,
         skipButton: null,
         continueDeactivationButton: null,
         keepFreePlanButton: null,
-        oneTimeDealButton: null,
+        freeCreditsButton: null,
         currentStep: 'survey',
+        showRetentionCardsForAllReasons: false,
 
         /**
          * Initialize the deactivation survey
@@ -90,14 +92,17 @@
             this.reasonInputs = this.form.find('input[name="reason"]');
             this.surveyStep = $('#altm-survey-step');
             this.pricingStep = $('#altm-pricing-step');
+            this.pricingStepHeading = $('#altm-pricing-step-heading');
             this.detailsSection = $('#altm-details-section');
             this.detailsTextarea = $('#altm-details');
+            this.showRetentionCardsForAllReasons = altm_deactivation_ajax.show_retention_cards_for_all_reasons === '1' ||
+                altm_deactivation_ajax.show_retention_cards_for_all_reasons === true;
 
             this.continueButton = $('#altm-continue-button');
             this.skipButton = $('#altm-skip-and-deactivate');
             this.continueDeactivationButton = $('#altm-continue-deactivation');
             this.keepFreePlanButton = $('#altm-keep-free-plan');
-            this.oneTimeDealButton = $('#altm-get-one-time-deal');
+            this.freeCreditsButton = $('#altm-redeem-free-credits');
 
             this.bindModalEvents();
         },
@@ -129,8 +134,8 @@
                 self.handleRetentionAction('keep_free_plan', altm_deactivation_ajax.account_settings_url);
             });
 
-            this.oneTimeDealButton.on('click', function () {
-                self.handleRetentionAction('switch_to_one_time_pricing', altm_deactivation_ajax.one_time_deal_url, {
+            this.freeCreditsButton.on('click', function () {
+                self.handleRetentionAction('redeem_free_credits', altm_deactivation_ajax.free_credits_url, {
                     openInNewTab: true,
                     closeModal: true
                 });
@@ -197,7 +202,7 @@
                 return;
             }
 
-            if (selectedReason === 'cost') {
+            if (this.shouldShowRetentionCards(selectedReason)) {
                 this.showStep('pricing');
                 return;
             }
@@ -208,12 +213,20 @@
         },
 
         /**
+         * Free plans see the retention cards for every survey reason.
+         */
+        shouldShowRetentionCards: function (selectedReason) {
+            return selectedReason === 'cost' || this.showRetentionCardsForAllReasons;
+        },
+
+        /**
          * Show a specific step in the modal
          */
         showStep: function (stepName) {
             this.currentStep = stepName;
 
             if (stepName === 'pricing') {
+                this.updatePricingStepHeading();
                 this.surveyStep.hide();
                 this.pricingStep.fadeIn(180);
                 this.keepFreePlanButton.trigger('focus');
@@ -223,6 +236,20 @@
             this.pricingStep.hide();
             this.surveyStep.fadeIn(180);
             this.reasonInputs.first().trigger('focus');
+        },
+
+        /**
+         * Keep the pricing-specific heading only when the selected reason is pricing.
+         */
+        updatePricingStepHeading: function () {
+            var selectedReason = this.reasonInputs.filter(':checked').val();
+            var heading = 'Before you deactivate, here are ways to keep using Alt Magic.';
+
+            if (selectedReason === 'cost') {
+                heading = 'Pricing is a concern? Here are lower-cost ways to keep using Alt Magic.';
+            }
+
+            this.pricingStepHeading.text(heading);
         },
 
         /**
@@ -350,7 +377,7 @@
             this.reasonInputs.closest('.altm-reason-option').removeClass('is-selected');
             this.continueButton.prop('disabled', true).text('Continue');
             this.keepFreePlanButton.prop('disabled', false).text('Keep Free Plan');
-            this.oneTimeDealButton.prop('disabled', false).text('Check Lifetime Deal');
+            this.freeCreditsButton.prop('disabled', false).text('Redeem my 500 free credits');
             this.continueDeactivationButton.text('Continue deactivation');
             this.showStep('survey');
         },
@@ -417,7 +444,7 @@
 
             this.continueButton.prop('disabled', isLoading || !this.reasonInputs.filter(':checked').length);
             this.keepFreePlanButton.prop('disabled', isPricingAction && isLoading);
-            this.oneTimeDealButton.prop('disabled', isPricingAction && isLoading);
+            this.freeCreditsButton.prop('disabled', isPricingAction && isLoading);
             this.continueDeactivationButton
                 .toggleClass('is-disabled', isPricingAction && isLoading)
                 .attr('aria-disabled', isPricingAction && isLoading ? 'true' : 'false');
@@ -430,8 +457,8 @@
                 this.keepFreePlanButton.text(isLoading ? 'Working...' : 'Keep Free Plan');
             }
 
-            if (retentionAction === 'switch_to_one_time_pricing') {
-                this.oneTimeDealButton.text(isLoading ? 'Working...' : 'Check Lifetime Deal');
+            if (retentionAction === 'redeem_free_credits') {
+                this.freeCreditsButton.text(isLoading ? 'Working...' : 'Redeem my 500 free credits');
             }
 
             if (retentionAction === 'continue_deactivation') {

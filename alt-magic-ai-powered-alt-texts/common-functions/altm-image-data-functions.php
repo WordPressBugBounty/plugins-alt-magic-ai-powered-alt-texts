@@ -242,6 +242,9 @@ function altm_get_user_credits_data() {
     ));
 
     $data = json_decode(wp_remote_retrieve_body($response), true);
+    if (function_exists('alt_magic_store_plan_type_from_user_details')) {
+        alt_magic_store_plan_type_from_user_details($data);
+    }
     altm_log('User credits data: ' . print_r($data['credits_available'], true));
     return $data;
 }
@@ -609,19 +612,19 @@ add_action('wp_ajax_altm_get_all_images', 'altm_get_all_images');
 function altm_get_bad_name_keywords() {
     return array(
         // Camera/device generated names
-        'IMG_', 'DSC_', 'DSCN', 'DSCF', 'PIC_', 'PICT', 'CAM_', 'PHOTO_',
+        'IMG_', 'DSC_', 'DSCN', 'DSCF', 'PIC_', 'PICT', 'CAM_', 'PHOTO_', 'PAT_',
         
         // Generic descriptive words
         'screenshot', 'image', 'photo', 'picture', 'img', 'pics',
         'sample', 'thumbnail', 'thumb', 'test', 'default', 'tmp',
-        'new', 'untitled', 'untitled-', 'copy', 'copy-', 'copy_of',
+        'untitled', 'untitled-', 'copy', 'copy-', 'copy_of',
         
         // Stock image keywords
         'unsplash', 'pexels', 'pixabay', 'freepik', 'stock', 'istock', 'getty',
         'adobe', 'shutterstock', 'canva', 'depositphotos', 'dreamstime', '123rf',
         'vecteezy', 'flickr', 'rawpixel', 'picjumbo', 'stocksnap', 'kaboompics',
         'burst', 'resplash', 'scopio', 'pikwizard',
-        'wallpaper', 'pattern', 'template', 'banner', 'hero', 'cover',
+        'wallpaper', 'pattern', 'template', 'banner', 'hero',
         'placeholder', 'free', 'sample', 'stockphoto', 'stockimage',
         
         // AI generated keywords
@@ -642,9 +645,23 @@ function altm_get_bad_name_keywords() {
  * @return string MySQL REGEXP pattern
  */
 function altm_generate_bad_name_regex($keywords) {
-    // Split keywords into smaller groups to avoid MySQL regex limits
-    $keyword_groups = array_chunk($keywords, 20); // Process 20 keywords at a time
+    $prefix_keywords = array('IMG_', 'DSC_', 'DSCN', 'DSCF', 'PIC_', 'PICT', 'CAM_', 'PHOTO_', 'PAT_', 'ai_generated_', 'generated_');
+    $token_keywords = array_values(array_diff($keywords, $prefix_keywords));
     $regex_conditions = array();
+
+    $prefix_groups = array_chunk($prefix_keywords, 20);
+    foreach ($prefix_groups as $group) {
+        $escaped_keywords = array();
+        foreach ($group as $keyword) {
+            $escaped_keywords[] = preg_quote($keyword, '/');
+        }
+
+        $keywords_pattern = implode('|', $escaped_keywords);
+        $regex_conditions[] = "pm_file.meta_value REGEXP '(?i)(^|/)(" . $keywords_pattern . ")[^/]*\\.[A-Za-z0-9]+$'";
+    }
+
+    // Split keywords into smaller groups to avoid MySQL regex limits.
+    $keyword_groups = array_chunk($token_keywords, 20);
     
     foreach ($keyword_groups as $group) {
         // Escape special regex characters and join with OR
@@ -656,12 +673,40 @@ function altm_generate_bad_name_regex($keywords) {
         
         $keywords_pattern = implode('|', $escaped_keywords);
         
-        // Create regex pattern for this group
-        $regex_conditions[] = "pm_file.meta_value REGEXP '(?i)(^|/)[^/]*(" . $keywords_pattern . ")[^/]*\\.[A-Za-z0-9]+$'";
+        // Match generic keywords as filename tokens, not substrings inside real words.
+        $regex_conditions[] = "pm_file.meta_value REGEXP '(?i)(^|/)([^/]*[^[:alnum:]])?(" . $keywords_pattern . ")([^[:alnum:]][^/]*\\.[A-Za-z0-9]+|\\.[A-Za-z0-9]+)$'";
     }
     
     // Join all conditions with OR
     return implode(' OR ', $regex_conditions);
+}
+
+function altm_get_bad_name_false_positive_phrases() {
+    return array(
+        'new-guinea',
+        'new-hebrides',
+        'new-york',
+    );
+}
+
+function altm_generate_bad_name_false_positive_regex($phrases) {
+    $escaped_phrases = array();
+
+    foreach ($phrases as $phrase) {
+        $escaped_phrases[] = preg_quote($phrase, '/');
+    }
+
+    if (empty($escaped_phrases)) {
+        return '';
+    }
+
+    return "pm_file.meta_value REGEXP '(?i)(^|/)[^/]*(" . implode('|', $escaped_phrases) . ")[^/]*\\.[A-Za-z0-9]+$'";
+}
+
+function altm_get_low_confidence_new_regex_clause() {
+    return "pm_file.meta_value REGEXP '(?i)(^|/)new([-_][0-9]+)?\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(?i)(^|/)new[-_][[:alnum:]]{1,12}\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(?i)(^|/)[[:alnum:]]{1,12}[-_]new\\.[A-Za-z0-9]+$'";
 }
 
 function altm_build_renaming_image_rows($results) {
@@ -710,10 +755,26 @@ function altm_build_renaming_image_rows($results) {
 function altm_get_bad_name_regex_clause() {
     $bad_name_keywords = altm_get_bad_name_keywords();
     $keywords_regex = altm_generate_bad_name_regex($bad_name_keywords);
+    $false_positive_regex = altm_generate_bad_name_false_positive_regex(altm_get_bad_name_false_positive_phrases());
+    $low_confidence_new_regex = altm_get_low_confidence_new_regex_clause();
 
-    return $keywords_regex . " OR " .
-        "pm_file.meta_value REGEXP '(^|/)[0-9]{6,}\\.[A-Za-z0-9]+$' OR " .
-        "pm_file.meta_value REGEXP '(^|/)[^/]*[0-9]{7,}[^/]*(\\.[A-Za-z0-9]+)?$'";
+    $bad_name_clause = $keywords_regex . " OR " .
+        "pm_file.meta_value REGEXP '(^|/)[0-9]+\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(^|/)[[:alnum:]]{1,12}\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(?i)(^|/)cover([-_][0-9]+)?\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(^|/)[^/]*[0-9]{1,4}[-_.][0-9]{1,2}[-_.][0-9]{2,4}[^/]*\\.[A-Za-z0-9]+$' OR " .
+        "pm_file.meta_value REGEXP '(^|/)[^/]*[0-9]{7,}[^/]*(\\.[A-Za-z0-9]+)?$' OR " .
+        "pm_file.meta_value REGEXP '(^|/)[[:upper:]]{2,5}[_-]?[0-9]{3,}\\.[A-Za-z0-9]+$'";
+
+    if ($low_confidence_new_regex !== '') {
+        if ($false_positive_regex !== '') {
+            $bad_name_clause .= ' OR ((' . $low_confidence_new_regex . ') AND NOT (' . $false_positive_regex . '))';
+        } else {
+            $bad_name_clause .= ' OR (' . $low_confidence_new_regex . ')';
+        }
+    }
+
+    return $bad_name_clause;
 }
 
 function altm_get_image_renaming_query_request() {

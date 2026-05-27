@@ -177,6 +177,7 @@ function alt_magic_add_settings() {
         'alt_magic_account_active' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_api_key' => ['default' => '', 'type' => 'string'],
         'alt_magic_user_id' => ['default' => '', 'type' => 'string'],
+        'alt_magic_plan_type' => ['default' => '', 'type' => 'string'],
         'alt_magic_language' => ['default' => 'en', 'type' => 'string'],
         'alt_magic_wpml_bulk_image_scope' => ['default' => 'current_language', 'type' => 'string'],
         'alt_magic_onboarding_done' => ['default' => 0, 'type' => 'boolean'],

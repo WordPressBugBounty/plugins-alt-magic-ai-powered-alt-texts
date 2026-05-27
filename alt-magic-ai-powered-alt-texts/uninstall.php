@@ -77,6 +77,7 @@ $options_to_remove = [
     'alt_magic_account_active',
     'alt_magic_api_key',
     'alt_magic_user_id',
+    'alt_magic_plan_type',
     'alt_magic_language',
     'alt_magic_use_for_title',
     'alt_magic_use_for_caption',

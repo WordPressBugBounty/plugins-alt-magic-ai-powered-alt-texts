@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 // Render plugin settings page
 function alt_magic_render_settings_page() {
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.6';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.7';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -47,7 +47,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.6';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.7';
     $alt_text_language = get_option('alt_magic_language', 'en');
     $rename_language = get_option('alt_magic_rename_language', 'en');
     $onboarding_done = get_option('alt_magic_onboarding_done', 0);
@@ -582,6 +582,40 @@ function alt_magic_render_settings_page() {
     <?php
 }
 
+function alt_magic_get_plan_type_from_user_details($user_details) {
+    if (!is_array($user_details)) {
+        return '';
+    }
+
+    $candidates = array(
+        isset($user_details['plan_type']) ? $user_details['plan_type'] : '',
+        isset($user_details['planType']) ? $user_details['planType'] : '',
+        isset($user_details['subscription_plan_type']) ? $user_details['subscription_plan_type'] : '',
+        isset($user_details['subscriptionPlanType']) ? $user_details['subscriptionPlanType'] : '',
+        isset($user_details['subscription']) && is_array($user_details['subscription']) && isset($user_details['subscription']['plan_type']) ? $user_details['subscription']['plan_type'] : '',
+        isset($user_details['subscription']) && is_array($user_details['subscription']) && isset($user_details['subscription']['planType']) ? $user_details['subscription']['planType'] : '',
+        isset($user_details['plan']) && is_array($user_details['plan']) && isset($user_details['plan']['type']) ? $user_details['plan']['type'] : ''
+    );
+
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && trim($candidate) !== '') {
+            return strtolower(sanitize_text_field(trim($candidate)));
+        }
+    }
+
+    return '';
+}
+
+function alt_magic_store_plan_type_from_user_details($user_details) {
+    $plan_type = alt_magic_get_plan_type_from_user_details($user_details);
+
+    if ($plan_type !== '') {
+        update_option('alt_magic_plan_type', $plan_type);
+    }
+
+    return $plan_type;
+}
+
 // Save API key and user_id via AJAX
 function alt_magic_save_api_key() {
 
@@ -616,6 +650,7 @@ function alt_magic_remove_api_key() {
 
     delete_option('alt_magic_api_key');
     delete_option('alt_magic_user_id');
+    delete_option('alt_magic_plan_type');
     update_option( 'alt_magic_account_active', 0 );
     wp_die();
 }
@@ -687,6 +722,9 @@ function alt_magic_verify_api_key() {
     update_option('alt_magic_api_key', $api_key);
     update_option('alt_magic_user_id', $data['user_id']);
     update_option('alt_magic_account_active', 1);
+    if (isset($data['user_details'])) {
+        alt_magic_store_plan_type_from_user_details($data['user_details']);
+    }
 
     // Return the success response with user details
     wp_send_json_success($data);
@@ -773,6 +811,7 @@ function alt_magic_wp_auto_register() {
     update_option('alt_magic_api_key', $data['api_key']);
     update_option('alt_magic_user_id', $data['user_id']);
     update_option('alt_magic_account_active', 1);
+    alt_magic_store_plan_type_from_user_details($data['user_details']);
 
     altm_log('WordPress auto-register - Options saved successfully');
 

@@ -47,14 +47,69 @@ class AltMagic_Deactivation_Survey {
             ALT_MAGIC_PLUGIN_VERSION
         );
         
+        $plan_type = $this->get_current_plan_type();
+
         // Localize script for AJAX
         wp_localize_script('altm-deactivation-survey', 'altm_deactivation_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('altm_deactivation_survey_nonce'),
             'plugin_file' => plugin_basename(dirname(dirname(__FILE__)) . '/altm-main-file.php'),
             'account_settings_url' => admin_url('admin.php?page=alt-magic'),
-            'one_time_deal_url' => 'https://altmagic.pro/lifetime-deal#pricing'
+            'free_credits_url' => 'https://www.altmagic.pro/promotions/redeem-free-credits',
+            'plan_type' => $plan_type,
+            'show_retention_cards_for_all_reasons' => $this->should_show_retention_cards_for_all_reasons($plan_type) ? '1' : '0'
         ));
+    }
+
+    private function get_current_plan_type() {
+        $plan_type = strtolower(trim((string) get_option('alt_magic_plan_type', '')));
+
+        if ($plan_type !== '') {
+            return sanitize_text_field($plan_type);
+        }
+
+        return $this->fetch_current_plan_type();
+    }
+
+    private function fetch_current_plan_type() {
+        $api_key = get_option('alt_magic_api_key', '');
+        $user_id = get_option('alt_magic_user_id', '');
+
+        if (empty($api_key) || empty($user_id)) {
+            return '';
+        }
+
+        $response = wp_remote_post(ALT_MAGIC_API_BASE_URL . '/user-details', array(
+            'method' => 'POST',
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $api_key
+            ),
+            'body' => wp_json_encode(array(
+                'user_id' => $user_id,
+                'site_url' => get_site_url()
+            )),
+            'timeout' => 5,
+            'blocking' => true,
+            'httpversion' => '1.1',
+            'sslverify' => true
+        ));
+
+        if (is_wp_error($response)) {
+            return '';
+        }
+
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (function_exists('alt_magic_store_plan_type_from_user_details')) {
+            return alt_magic_store_plan_type_from_user_details($data);
+        }
+
+        return '';
+    }
+
+    private function should_show_retention_cards_for_all_reasons($plan_type) {
+        return $plan_type === 'free';
     }
     
     /**
@@ -187,8 +242,8 @@ class AltMagic_Deactivation_Survey {
 
         if ($retention_action === 'keep_free_plan') {
             $event_type = 'deactivation_retention_click_free';
-        } elseif ($retention_action === 'switch_to_one_time_pricing') {
-            $event_type = 'deactivation_retention_click_lifetime';
+        } elseif ($retention_action === 'redeem_free_credits') {
+            $event_type = 'deactivation_retention_click_free_credits';
         }
 
         $request_data = array(
@@ -291,7 +346,7 @@ class AltMagic_Deactivation_Survey {
                         <div class="altm-modal-header altm-modal-header-left">
                             <div class="altm-pricing-header-title">
                                 <img src="<?php echo esc_url(plugin_dir_url(__FILE__) . '../assets/main-logo-big.svg'); ?>" alt="Alt Magic" class="altm-logo altm-pricing-logo">
-                                <h2>Pricing is a concern? Here are lower-cost ways to keep using Alt Magic.</h2>
+                                <h2 id="altm-pricing-step-heading">Pricing is a concern? Here are lower-cost ways to keep using Alt Magic.</h2>
                             </div>
                         </div>
 
@@ -309,14 +364,14 @@ class AltMagic_Deactivation_Survey {
                                 </section>
 
                                 <section class="altm-pricing-card altm-pricing-card-featured">
-                                    <span class="altm-pricing-badge altm-pricing-badge-featured">Best for occasional bulk usage</span>
-                                    <h3>Get lifetime deal</h3>
-                                    <p class="altm-pricing-price">Pay $49 once</p>
+                                    <span class="altm-pricing-badge altm-pricing-badge-featured">Limited free credit offer</span>
+                                    <h3>🎁 Redeem free 500 image credits now</h3>
+                                    <p class="altm-pricing-price">500 free image credits</p>
                                     <ul class="altm-pricing-points">
-                                        <li>Pay once; get monthly credits for lifetime</li>
-                                        <li>Ideal for seasonal image volume</li>
+                                        <li>Use them for alt text generation and image renaming</li>
+                                        <li>Helpful for testing Alt Magic on a larger image batch</li>
                                     </ul>
-                                    <button type="button" id="altm-get-one-time-deal" class="button button-primary altm-option-button">Check Lifetime Deal</button>
+                                    <button type="button" id="altm-redeem-free-credits" class="button button-primary altm-option-button">Redeem my 500 free credits</button>
                                 </section>
                             </div>
 
