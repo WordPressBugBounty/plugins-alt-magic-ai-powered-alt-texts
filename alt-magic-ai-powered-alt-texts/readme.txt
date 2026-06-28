@@ -3,7 +3,7 @@ Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, image seo, bulk alt text
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.7.7
+Stable tag: 1.7.8
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -189,6 +189,10 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.7.8 =
+* Improved credit display formatting in admin pages
+* Polished the processed images credits banner
+
 = 1.7.7 =
 * Improved bad filename detection for image renaming
 * Reduced false positives for descriptive image names
@@ -325,6 +329,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.7.8 =
+* Small admin polish update for clearer credit display.
+
 = 1.7.7 =
 * Improved image renaming filename detection and reduced false positives.
 

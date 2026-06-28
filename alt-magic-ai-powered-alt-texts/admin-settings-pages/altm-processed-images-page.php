@@ -169,6 +169,14 @@ function altm_render_processed_images_page() {
         
         // Debug search input existence
         ////console.log('Search input exists:', $('#altm-search-input').length > 0);
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) {
+                return num;
+            }
+
+            return parseInt(num, 10).toLocaleString();
+        }
         
         // Try to get saved preferences
         if (localStorage.getItem('altm_images_per_page')) {
@@ -209,7 +217,7 @@ function altm_render_processed_images_page() {
         
         function updateCreditsDisplay(credits) {
             if (credits !== null) {
-                $('.credits-available-text').text(credits + ' credits');
+                $('.credits-available-text').text(formatNumber(credits) + ' credits');
                 
                 $('.credits-available-text').removeClass('credits-high credits-medium credits-low');
                 
@@ -641,6 +649,30 @@ function altm_render_processed_images_page() {
     .altm-loading {
         text-align: center;
         margin: 40px 0;
+    }
+
+    .credits-available-text.credits-high {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .credits-available-text.credits-medium {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .credits-available-text.credits-low {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
     }
     
     /* Summary Card */

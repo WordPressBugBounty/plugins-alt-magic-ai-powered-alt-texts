@@ -3,6 +3,14 @@ jQuery(document).ready(function ($) {
     const MAX_CONCURRENCY = parseInt(altmImageProcessing.maxConcurrency) || 5;
     const IS_WPML_ACTIVE = !!altmImageProcessing.isWpmlActive;
 
+    function formatNumber(num) {
+        if (num === null || num === undefined) {
+            return num;
+        }
+
+        return parseInt(num, 10).toLocaleString();
+    }
+
     function getCurrentWpmlLanguage() {
         const searchParams = new URLSearchParams(window.location.search || '');
         const queryLanguage = searchParams.get('lang');
@@ -199,7 +207,7 @@ jQuery(document).ready(function ($) {
 
     function updateCreditsDisplay(credits) {
         if (credits !== null) {
-            $('.credits-available-text').text(credits + ' credits');
+            $('.credits-available-text').text(formatNumber(credits) + ' credits');
 
             // Remove all credit classes first
             $('.credits-available-text').removeClass('credits-high credits-medium credits-low');
