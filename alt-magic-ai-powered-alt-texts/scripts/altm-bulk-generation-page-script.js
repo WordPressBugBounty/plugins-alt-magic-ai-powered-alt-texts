@@ -5,6 +5,17 @@ document.addEventListener('DOMContentLoaded', function () {
         return parseInt(num).toLocaleString();
     }
 
+    function isLocalSiteGenerationBlockedError(error) {
+        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
+            && window.altmIsLocalSiteGenerationBlocked(error);
+    }
+
+    function showLocalSiteGenerationBlockedModal(error) {
+        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
+            window.altmShowLocalSiteUnlockModal(error);
+        }
+    }
+
     const bulkGenerationData = {
         ajaxurl: altMagicBulkGeneration.ajaxurl,
         nonce: altMagicBulkGeneration.nonce
@@ -131,6 +142,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
                 const data = await response.json();
                 if (data) {
+                    const localSiteError = data.find(image => isLocalSiteGenerationBlockedError(image));
+                    if (localSiteError) {
+                        showLocalSiteGenerationBlockedModal(localSiteError);
+                        stopBulkImageAltGeneration();
+                        return;
+                    }
+
                     if (data.some(image => image.error === 'no_credits')) {
                         stopBulkImageAltGeneration();
                         return;

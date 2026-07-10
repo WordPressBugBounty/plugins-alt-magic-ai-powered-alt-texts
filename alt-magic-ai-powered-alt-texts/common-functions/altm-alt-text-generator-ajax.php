@@ -6,34 +6,78 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * Discards accidental output before JSON AJAX responses.
+ *
+ * Some WordPress hooks/plugins can echo text during metadata or post updates.
+ * jQuery then receives valid side effects with a non-JSON response body and
+ * reports parsererror. Keep the AJAX response body owned by wp_send_json_*().
+ */
+function altm_clean_ajax_json_response_buffer($buffer_level, $context) {
+    $unexpected_output = '';
+
+    while (ob_get_level() > $buffer_level) {
+        $buffer_contents = ob_get_clean();
+
+        if (is_string($buffer_contents) && $buffer_contents !== '') {
+            $unexpected_output .= $buffer_contents;
+        }
+    }
+
+    if ($unexpected_output !== '') {
+        $output_summary = trim(wp_strip_all_tags($unexpected_output));
+        if (function_exists('altm_log')) {
+            altm_log('Suppressed unexpected output before JSON response (' . $context . '): ' . substr($output_summary, 0, 500));
+        }
+    }
+}
+
+function altm_send_clean_json_error($data, $buffer_level, $context) {
+    altm_clean_ajax_json_response_buffer($buffer_level, $context);
+    wp_send_json_error($data);
+}
+
+function altm_send_clean_json_success($data, $buffer_level, $context) {
+    altm_clean_ajax_json_response_buffer($buffer_level, $context);
+    wp_send_json_success($data);
+}
+
+function altm_send_clean_json($data, $buffer_level, $context) {
+    altm_clean_ajax_json_response_buffer($buffer_level, $context);
+    wp_send_json($data);
+}
+
+/**
  * Generates alt text for an attachment via AJAX.
  */
 function altm_generate_alt_text_ajax_handler() {
+    $altm_json_buffer_level = ob_get_level();
+    ob_start();
+
     altm_log('altm_generate_alt_text_ajax_handler called');
-    
+
     // Check nonce for security
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'generate_alt_text_nonce')) {
-        wp_send_json_error(array('message' => 'Invalid nonce.'));
+        altm_send_clean_json_error(array('message' => 'Invalid nonce.'), $altm_json_buffer_level, 'generate_alt_text_ajax');
         return;
     }
 
     // Check user capabilities
     if (!current_user_can('upload_files')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        altm_send_clean_json_error(array('message' => 'Insufficient permissions.'), $altm_json_buffer_level, 'generate_alt_text_ajax');
         return;
     }
 
     // Check for the required POST parameter
     if (!isset($_POST['attachment_id'])) {
-        wp_send_json_error(array('message' => 'No attachment ID provided.'));
+        altm_send_clean_json_error(array('message' => 'No attachment ID provided.'), $altm_json_buffer_level, 'generate_alt_text_ajax');
         return;
     }
 
     $attachment_id = absint($_POST['attachment_id']);
-    
+
     // Sanitize and validate source parameter
     $source = isset($_POST['source']) ? sanitize_text_field(wp_unslash($_POST['source'])) : 'unknown';
-    $allowed_sources = array('image_processing_page', 'image_library_popup', 'image_details_popup', 'image_details_page', 'bulk_generation', 'media_library', 'upload', 'unknown');
+    $allowed_sources = array('image_processing_page', 'image_library_popup', 'image_details_popup', 'image_details_page', 'post_editor_popup', 'post_editor_block', 'bulk_generation', 'media_library', 'media_library_list', 'upload', 'unknown');
     if (!in_array($source, $allowed_sources, true)) {
         $source = 'unknown';
     }
@@ -43,10 +87,19 @@ function altm_generate_alt_text_ajax_handler() {
     // Proceed to generate alt text
     $result = altm_generate_alt_text($attachment_id, $source);
 
+    if (!is_array($result) || !isset($result[0])) {
+        altm_log('Alt text generation returned an invalid result for attachment ID: ' . $attachment_id);
+        altm_send_clean_json_error(array('message' => 'Failed to generate alt text. Please try again.'), $altm_json_buffer_level, 'generate_alt_text_ajax');
+        return;
+    }
+
     if ($result[0] === false) {
         // Check if we have additional error information (message and status code)
         $error_data = array('message' => $result[1]);
-        
+        if (isset($result[1]) && is_string($result[1])) {
+            $error_data['error_code'] = $result[1];
+        }
+
         // If we have a detailed error message (index 2) and status code (index 3)
         if (isset($result[2])) {
             $error_data['message'] = $result[2];
@@ -54,19 +107,20 @@ function altm_generate_alt_text_ajax_handler() {
         if (isset($result[3])) {
             $error_data['status_code'] = $result[3];
         }
-        
+
         // For authentication errors, send with success: false and status_code
         if (isset($result[3]) && $result[3] == 403) {
-            wp_send_json(array(
+            altm_send_clean_json(array(
                 'success' => false,
                 'message' => $error_data['message'],
+                'error_code' => isset($error_data['error_code']) ? $error_data['error_code'] : '',
                 'status_code' => 403
-            ));
+            ), $altm_json_buffer_level, 'generate_alt_text_ajax');
         } else {
-            wp_send_json_error($error_data);
+            altm_send_clean_json_error($error_data, $altm_json_buffer_level, 'generate_alt_text_ajax');
         }
     } else {
-                
+
         // Prepare response data
         $response_data = array(
             'alt_text' => $result[1],
@@ -76,8 +130,8 @@ function altm_generate_alt_text_ajax_handler() {
                 'alt_magic_use_for_description' => get_option('alt_magic_use_for_description')
             )
         );
-        
-        wp_send_json_success($response_data);
+
+        altm_send_clean_json_success($response_data, $altm_json_buffer_level, 'generate_alt_text_ajax');
     }
 }
 add_action('wp_ajax_altm_generate_alt_text_ajax', 'altm_generate_alt_text_ajax_handler');
@@ -87,7 +141,7 @@ add_action('wp_ajax_altm_generate_alt_text_ajax', 'altm_generate_alt_text_ajax_h
  */
 function altm_generate_alt_text_batch_ajax_handler() {
     altm_log('altm_generate_alt_text_batch_ajax_handler called');
-    
+
     // Check nonce for security
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'generate_alt_text_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
@@ -107,7 +161,7 @@ function altm_generate_alt_text_batch_ajax_handler() {
     }
 
     $attachment_ids = array_map('intval', $_POST['attachment_ids']);
-    
+
     if (empty($attachment_ids)) {
         wp_send_json_error(array('message' => 'No valid attachment IDs provided.'));
         return;
@@ -115,7 +169,7 @@ function altm_generate_alt_text_batch_ajax_handler() {
 
     // Process multiple images in parallel using the function from altm-alt-text-generator.php
     $results = altm_generate_alt_text_batch($attachment_ids);
-    
+
     wp_send_json_success($results);
 }
 add_action('wp_ajax_altm_generate_alt_text_batch_ajax', 'altm_generate_alt_text_batch_ajax_handler');
@@ -172,7 +226,7 @@ add_action('wp_ajax_altm_generate_alt_text_bulk_query_ajax', 'altm_generate_alt_
  */
 function altm_update_alt_text_simple_ajax_handler() {
     altm_log('Manual alt text update called from Image Processing Page');
-    
+
     // Check nonce for security
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'generate_alt_text_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
@@ -196,13 +250,17 @@ function altm_update_alt_text_simple_ajax_handler() {
 
     // Update the alt text in attachment meta
     altm_log('Updating attachment alt text in Media Library');
-    update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);    
-    
+    update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
+
     // Update the alt text in all posts/pages where this image is used
     altm_log('Updating attachment alt text in all posts/pages containing this image');
-    altm_update_alt_text_in_all_posts($attachment_id, $alt_text);
-    
-    altm_log('Updation finished');     
+    if (function_exists('altm_sync_alt_text_to_posts_safely')) {
+        altm_sync_alt_text_to_posts_safely($attachment_id, $alt_text);
+    } else {
+        altm_update_alt_text_in_all_posts($attachment_id, $alt_text);
+    }
+
+    altm_log('Updation finished');
 
     wp_send_json_success(array(
         'message' => 'Alt text updated successfully.',

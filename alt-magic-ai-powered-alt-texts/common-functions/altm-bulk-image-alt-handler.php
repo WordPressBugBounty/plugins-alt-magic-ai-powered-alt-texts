@@ -40,14 +40,16 @@ function altm_handle_bulk_image_alt_generation() {
 
     altm_log('image_ids: ' . print_r($image_ids, true));
 
-    foreach ($image_ids as $image) {   
+    foreach ($image_ids as $image) {
         $result = altm_generate_alt_text($image['attachment_id']);
+        $error_code = '';
         if ($result[0] === true) {
             $alt_text = $result[1];
             $error = '';
             $status_code = null;
         } else {
             $alt_text = '';
+            $error_code = isset($result[1]) && is_string($result[1]) ? $result[1] : '';
             // Check if this is an authentication error (index 3 contains status code)
             if (isset($result[3]) && $result[3] === 403) {
                 $error = isset($result[2]) ? $result[2] : $result[1];
@@ -57,7 +59,7 @@ function altm_handle_bulk_image_alt_generation() {
                 $status_code = null;
             }
         }
-        
+
         $image_data_item = array(
             'attachment_id' => $image['attachment_id'],
             'image_url' => $image['image_url'], // Include image_url in the response
@@ -65,12 +67,16 @@ function altm_handle_bulk_image_alt_generation() {
             'alt_text' => $alt_text,
             'error' => $error
         );
-        
+
+        if (isset($error_code) && $error_code !== '') {
+            $image_data_item['error_code'] = $error_code;
+        }
+
         // Add status_code if it's an authentication error
         if ($status_code !== null) {
             $image_data_item['status_code'] = $status_code;
         }
-        
+
         $images_data[] = $image_data_item;
     }
 

@@ -10,7 +10,7 @@ function altm_render_image_processing_page() {
     if (!current_user_can('manage_options')) {
         return;
     }
-    
+
     $generate_alt_text_nonce = wp_create_nonce('generate_alt_text_nonce');
     $fetch_credits_nonce = wp_create_nonce('altm_fetch_user_credits_nonce');
     $list_images_nonce = wp_create_nonce('altm_image_processing_list_nonce');
@@ -32,30 +32,42 @@ function altm_render_image_processing_page() {
             );
         }
     }
-    
+
     // Use a relative AJAX path so the bulk page works even when local tooling proxies
     // the admin through a different origin/port (for example Local's :10003 host).
     $ajax_url = wp_parse_url(admin_url('admin-ajax.php'), PHP_URL_PATH);
-    
+
     $script_path = plugin_dir_path(__FILE__) . '../scripts/altm-image-processing-page-script.js';
+    $local_unlock_script_path = plugin_dir_path(__FILE__) . '../scripts/altm-local-site-unlock-modal.js';
     $style_path  = plugin_dir_path(__FILE__) . '../css/altm-image-processing-page.css';
     $use_filemtime_version = defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local';
     $script_version = $use_filemtime_version
         ? filemtime($script_path)
         : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($script_path));
+    $local_unlock_script_version = $use_filemtime_version
+        ? filemtime($local_unlock_script_path)
+        : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($local_unlock_script_path));
     $style_version = $use_filemtime_version
         ? filemtime($style_path)
         : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($style_path));
+
+    wp_enqueue_script(
+        'altm-local-site-unlock-modal',
+        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+        array('jquery'),
+        $local_unlock_script_version,
+        true
+    );
 
     // Enqueue the JavaScript file
     wp_enqueue_script(
         'altm-image-processing-script',
         plugin_dir_url(__FILE__) . '../scripts/altm-image-processing-page-script.js',
-        array('jquery'),
+        array('jquery', 'altm-local-site-unlock-modal'),
         $script_version,
         true
     );
-    
+
     // Enqueue the CSS file
     wp_enqueue_style(
         'altm-image-processing-style',
@@ -63,13 +75,13 @@ function altm_render_image_processing_page() {
         array(),
         $style_version
     );
-    
+
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
-    $purchase_url = !empty($user_email) 
+    $purchase_url = !empty($user_email)
         ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
         : 'https://www.altmagic.pro/pricing';
-    
+
     // Localize script to pass PHP variables to JavaScript
     wp_localize_script('altm-image-processing-script', 'altmImageProcessing', array(
         'ajaxUrl' => $ajax_url,
@@ -82,16 +94,16 @@ function altm_render_image_processing_page() {
         'userEmail' => get_option('alt_magic_user_id', ''),
         'isWpmlActive' => $is_wpml_active
     ));
-    
+
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
 
         <!-- Credits Display Section -->
         <div class="account-info-container" style="margin: 10px 0; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;">
-            <p id="account-info-text" style="font-size: 14px; color: #333; margin: 0;"><?php 
-            echo wp_kses_post($is_account_active ? 
-            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>' 
+            <p id="account-info-text" style="font-size: 14px; color: #333; margin: 0;"><?php
+            echo wp_kses_post($is_account_active ?
+            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>'
             : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
         </div>
 
@@ -264,7 +276,7 @@ function altm_render_image_processing_page() {
                 <h3 style="margin: 0;">Generating Alt Text...</h3>
                 <button id="close-modal" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
             </div>
-            
+
             <div style="margin-bottom: 15px;">
                 <div>Progress: <span id="progress-text">0 of 0</span> images <span id="progress-spinner"></span></div>
                 <div style="width: 100%; background-color: #f0f0f0; border-radius: 4px; margin-top: 5px;">
@@ -272,12 +284,12 @@ function altm_render_image_processing_page() {
                 </div>
                 <div style="text-align: center; margin-top: 5px;"><span id="progress-percentage">0%</span></div>
             </div>
-            
+
             <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                 <div style="background-color: #d1f2eb; padding: 4px 8px; border-radius: 4px; color: #0e7c55;">✓ Successful: <span id="success-count">0</span></div>
                 <div style="background-color: #fdeaea; padding: 4px 8px; border-radius: 4px; color: #c53030;">✗ Failed: <span id="failed-count">0</span></div>
             </div>
-            
+
             <div style="margin-bottom: 20px;">
                 <div style="font-weight: bold; margin-bottom: 10px;">Failed Images:</div>
                 <div style="height: 120px; overflow-y: auto; border: 1px solid #ddd; background: #f9f9f9;">
@@ -297,14 +309,14 @@ function altm_render_image_processing_page() {
                     </table>
                 </div>
             </div>
-            
+
             <!-- Completion Message (Hidden by default) -->
             <div id="completion-message" style="display: none; text-align: center; margin-bottom: 20px; padding: 20px; background: #d1f2eb; border-radius: 4px; border: 1px solid #a7f3d0;">
                 <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
                 <div style="font-size: 20px; font-weight: bold; color: #0e7c55; margin-bottom: 8px;">Processing Complete!</div>
                 <div style="color: #0e7c55; font-size: 14px;">All images have been processed successfully</div>
             </div>
-            
+
             <!-- Credits Depleted Message (Hidden by default) -->
             <div id="credits-depleted-message" style="display: none; text-align: center; margin-bottom: 20px; padding: 20px; background: #fdeaea; border-radius: 4px; border: 1px solid #f5c2c7;">
                 <div style="font-size: 32px; margin-bottom: 15px;">⚠️</div>
@@ -312,7 +324,7 @@ function altm_render_image_processing_page() {
                 <div style="color: #b70000; font-size: 14px; margin-bottom: 15px;">You've run out of credits. Purchase more to continue processing.</div>
                 <a href="<?php echo esc_url(!empty(get_option('alt_magic_user_id', '')) ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode(get_option('alt_magic_user_id', '')) : 'https://www.altmagic.pro/pricing'); ?>" target="_blank" class="button button-primary" style="margin-top: 10px;">Purchase Credits</a>
             </div>
-            
+
             <div style="text-align: center;">
                 <button id="cancel-processing" class="button">Cancel Processing</button>
             </div>
@@ -326,11 +338,11 @@ function altm_render_image_processing_page() {
                 <h3 style="margin: 0; color: #b70000;">⚠️ Authentication Error</h3>
                 <button id="close-auth-error-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
             </div>
-            
+
             <div style="margin-bottom: 20px; line-height: 1.6;">
                 <p id="auth-error-message" style="margin: 0;">Connection to Alt Magic failed. Please check your API key by going to the Account Settings page.</p>
             </div>
-            
+
             <div style="text-align: end;">
                 <button id="dismiss-auth-error" class="button" style="margin-right: 10px;">Dismiss</button>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=alt-magic')); ?>" class="button button-primary">Go to Account Settings</a>

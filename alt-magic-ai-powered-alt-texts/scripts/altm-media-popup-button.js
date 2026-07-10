@@ -20,7 +20,7 @@ jQuery(document).ready(function ($) {
         if ($('#altm-auth-error-modal').length) {
             return; // Modal already exists
         }
-        
+
         var modalHtml = '<div id="altm-auth-error-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001;">' +
             '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
             '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">' +
@@ -36,14 +36,14 @@ jQuery(document).ready(function ($) {
             '</div>' +
             '</div>' +
             '</div>';
-        
+
         $('body').append(modalHtml);
-        
+
         // Close modal handlers
         $(document).on('click', '#close-auth-error-modal, #dismiss-auth-error', function () {
             $('#altm-auth-error-modal').fadeOut(200);
         });
-        
+
         // Close modal when clicking outside
         $(document).on('click', '#altm-auth-error-modal', function (e) {
             if (e.target === this) {
@@ -51,14 +51,25 @@ jQuery(document).ready(function ($) {
             }
         });
     }
-    
+
     function showAuthErrorModal(message) {
         createAuthErrorModal();
         var errorMessage = message || 'Connection to Alt Magic failed. Please check your API key by going to the Account Settings page.';
         $('#auth-error-message').text(errorMessage);
         $('#altm-auth-error-modal').fadeIn(200);
     }
-    
+
+    function isLocalSiteGenerationBlockedError(error) {
+        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
+            && window.altmIsLocalSiteGenerationBlocked(error);
+    }
+
+    function showLocalSiteGenerationBlockedModal(error) {
+        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
+            window.altmShowLocalSiteUnlockModal(error);
+        }
+    }
+
     // Add CSS for loader
     $('<style>')
         .prop('type', 'text/css')
@@ -89,7 +100,7 @@ jQuery(document).ready(function ($) {
             .attachment-details{
                 overflow-x: clip;
             }
-            
+
             .generate-alt-text-button {
                 background: linear-gradient(135deg, #ec7b4e 0%, #e56a3a 100%) !important;
                 color: white !important;
@@ -104,31 +115,31 @@ jQuery(document).ready(function ($) {
                 border-radius: 4px !important;
                 white-space: nowrap;
             }
-            
+
             .generate-alt-text-button:before {
                 content: '\\f155'; /* WordPress dashicon for star-filled (magic wand) */
                 font-family: dashicons;
                 margin-right: 6px;
                 vertical-align: bottom;
             }
-            
+
             .generate-alt-text-button:hover {
                 background: linear-gradient(135deg, #f08a60 0%, #ec7b4e 100%) !important;
                 box-shadow: 0 4px 8px rgba(236, 123, 78, 0.4) !important;
                 transform: translateY(-1px);
             }
-            
+
             .generate-alt-text-button:focus {
                 box-shadow: 0 0 0 1px #fff, 0 0 0 3px #ec7b4e !important;
                 outline: none;
             }
-            
+
             .generate-alt-text-button:active {
                 background: linear-gradient(135deg, #d66c3c 0%, #c75e2f 100%) !important;
                 box-shadow: 0 1px 2px rgba(236, 123, 78, 0.4) !important;
                 transform: translateY(1px);
             }
-            
+
             #altMessage {
                 background-color:rgb(245, 254, 243);
                 border-left: 4px solid rgb(78, 236, 89);
@@ -139,7 +150,7 @@ jQuery(document).ready(function ($) {
                 color: #333;
                 font-weight: bold;
             }
-                
+
         `)
         .appendTo('head');
 
@@ -229,6 +240,101 @@ jQuery(document).ready(function ($) {
     function generateAltText(attachment) {
         var attachmentId = attachment.id;
 
+        function getMediaPageType() {
+            return document.getElementById('attachment-details-alt-text') ? 'product_page' : 'media_library';
+        }
+
+        function updateField(fieldType, altText) {
+            var pageType = getMediaPageType();
+            var fieldId = pageType === 'media_library'
+                ? 'attachment-details-two-column-' + fieldType
+                : 'attachment-details-' + fieldType;
+            var field = document.getElementById(fieldId);
+
+            if (!field) {
+                return;
+            }
+
+            field.value = altText;
+            $(field).trigger('input').trigger('change');
+        }
+
+        function showSuccessMessage() {
+            $('#altMessage').fadeIn();
+            setTimeout(function () {
+                $('#altMessage').fadeOut();
+            }, 3000);
+        }
+
+        function applyGeneratedAltText(altText, moreOptions) {
+            moreOptions = moreOptions || {};
+
+            updateField('alt-text', altText);
+
+            if (moreOptions.alt_magic_use_for_title == '1') {
+                updateField('title', altText);
+            }
+
+            if (moreOptions.alt_magic_use_for_caption == '1') {
+                updateField('caption', altText);
+            }
+
+            if (moreOptions.alt_magic_use_for_description == '1') {
+                updateField('description', altText);
+            }
+
+            showSuccessMessage();
+        }
+
+        function parseJsonFromResponseText(responseText) {
+            if (!responseText) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(responseText);
+            } catch (error) {
+                var start = responseText.indexOf('{');
+                var end = responseText.lastIndexOf('}');
+
+                if (start === -1 || end === -1 || end <= start) {
+                    return null;
+                }
+
+                try {
+                    return JSON.parse(responseText.substring(start, end + 1));
+                } catch (nestedError) {
+                    return null;
+                }
+            }
+        }
+
+        function recoverSavedAltText(onComplete) {
+            if (typeof wp === 'undefined' || !wp.media || !wp.media.attachment) {
+                onComplete(false);
+                return;
+            }
+
+            var mediaAttachment = wp.media.attachment(attachmentId);
+
+            mediaAttachment.fetch({
+                success: function (model) {
+                    var savedAltText = model.get('alt');
+
+                    if (!savedAltText) {
+                        onComplete(false);
+                        return;
+                    }
+
+                    applyGeneratedAltText(savedAltText, {});
+                    onComplete(true);
+                },
+                error: function () {
+                    onComplete(false);
+                }
+            });
+        }
+
         // Disable button, change text, and reduce opacity
         $('#customAltButton').prop('disabled', true)
             .text('Generating...');
@@ -252,6 +358,11 @@ jQuery(document).ready(function ($) {
                     .text('Generate Alt Text')
                     .css('opacity', '1');
 
+                if (isLocalSiteGenerationBlockedError(response)) {
+                    showLocalSiteGenerationBlockedModal(response);
+                    return;
+                }
+
                 // Check for authentication errors first
                 if (response.success === false && response.status_code === 403) {
                     showAuthErrorModal(response.message || 'Connection to Alt Magic failed. Please check your API key by going to the Account Settings page.');
@@ -261,46 +372,13 @@ jQuery(document).ready(function ($) {
                 if (response.success) {
                     var altText = response.data.alt_text;
                     var moreOptions = response.data.more_options;
-                    var page_type = 'media_library';
-
-                    if (document.getElementById('attachment-details-alt-text')) {
-                        page_type = 'product_page';
-                    }
-
-                    //console.log('page_type: ', page_type);
-
-                    function updateField(fieldType, altText) {
-                        const fieldId = page_type === 'media_library'
-                            ? `attachment-details-two-column-${fieldType}`
-                            : `attachment-details-${fieldType}`;
-                        document.getElementById(fieldId).value = altText;
-                    }
-
-                    // Update alt text
-                    updateField('alt-text', altText);
-
-                    // Check and update title if option is set
-                    if (moreOptions.alt_magic_use_for_title == '1') {
-                        updateField('title', altText);
-                    }
-
-                    // Check and update caption if option is set
-                    if (moreOptions.alt_magic_use_for_caption == '1') {
-                        updateField('caption', altText);
-                    }
-
-                    // Check and update description if option is set
-                    if (moreOptions.alt_magic_use_for_description == '1') {
-                        updateField('description', altText);
-                    }
-
-                    // Show success message
-                    $('#altMessage').fadeIn();
-                    // Hide the message after 3 seconds
-                    setTimeout(function () {
-                        $('#altMessage').fadeOut();
-                    }, 3000);
+                    applyGeneratedAltText(altText, moreOptions);
                 } else {
+                    if (isLocalSiteGenerationBlockedError(response.data || response)) {
+                        showLocalSiteGenerationBlockedModal(response.data || response);
+                        return;
+                    }
+
                     console.error('Error:', response.data || 'Unknown error');
                     alert('Failed to generate alt text. Please try again or contact chat support on app.altmagic.pro');
                 }
@@ -314,6 +392,33 @@ jQuery(document).ready(function ($) {
                     .css('opacity', '1');
 
                 console.error('AJAX Error:', textStatus, errorThrown);
+
+                if (textStatus === 'parsererror') {
+                    var parsedResponse = parseJsonFromResponseText(jqXHR.responseText);
+
+                    if (isLocalSiteGenerationBlockedError(parsedResponse)) {
+                        showLocalSiteGenerationBlockedModal(parsedResponse);
+                        return;
+                    }
+
+                    if (parsedResponse && parsedResponse.success && parsedResponse.data && parsedResponse.data.alt_text) {
+                        applyGeneratedAltText(parsedResponse.data.alt_text, parsedResponse.data.more_options);
+                        return;
+                    }
+
+                    recoverSavedAltText(function (recovered) {
+                        if (!recovered) {
+                            alert('An error occurred while generating alt text. Please try again. Error: ' + textStatus);
+                        }
+                    });
+                    return;
+                }
+
+                if (isLocalSiteGenerationBlockedError(jqXHR)) {
+                    showLocalSiteGenerationBlockedModal(jqXHR);
+                    return;
+                }
+
                 alert('An error occurred while generating alt text. Please try again. Error: ' + textStatus);
             }
         });

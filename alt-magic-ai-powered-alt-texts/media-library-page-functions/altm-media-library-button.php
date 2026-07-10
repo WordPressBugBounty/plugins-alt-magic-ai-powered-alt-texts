@@ -16,11 +16,19 @@ function altm_custom_media_popup_button_script() {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
         $post_id = isset($_GET['post']) ? absint($_GET['post']) : 0;
         if ($screen->base === 'upload' || ($screen->base === 'post' && $post_id > 0 && get_post_type($post_id) === 'product')) {
+            wp_enqueue_script(
+                'altm-local-site-unlock-modal',
+                plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+                array('jquery'),
+                defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
+                true
+            );
+
             // Enqueue the JavaScript file
             wp_enqueue_script(
                 'alt-magic-media-popup-button',
                 plugin_dir_url(__FILE__) . '../scripts/altm-media-popup-button.js',
-                array('jquery'),
+                array('jquery', 'altm-local-site-unlock-modal'),
                 '1.0.0', // Specify the version number here
                 true
             );
@@ -61,7 +69,7 @@ add_action('admin_init', 'altm_add_generate_button_to_edit_attachment');
  */
 function altm_enqueue_edit_attachment_script($hook) {
     global $post;
-    
+
     // Only on attachment edit screen
     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
     $action = isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '';
@@ -71,20 +79,28 @@ function altm_enqueue_edit_attachment_script($hook) {
         $post_id = absint($_GET['post']);
         $post_type = get_post_type($post_id);
         $is_image = wp_attachment_is_image($post_id);
-        
+
         if ($post_type !== 'attachment' || !$is_image) {
             return;
         }
-        
+
+        wp_enqueue_script(
+            'altm-local-site-unlock-modal',
+            plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+            array('jquery'),
+            defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
+            true
+        );
+
         // Enqueue the script
         wp_enqueue_script(
             'alt-magic-edit-attachment-button',
             plugin_dir_url(__FILE__) . '../scripts/altm-edit-attachment-button.js',
-            array('jquery'),
+            array('jquery', 'altm-local-site-unlock-modal'),
             '1.0.0',
             true
         );
-        
+
         // Localize the script with data
         wp_localize_script(
             'alt-magic-edit-attachment-button',
@@ -117,25 +133,25 @@ function altm_add_generate_button_to_media_list() {
         $columns['altm_generate'] = 'Alt Magic';
         return $columns;
     });
-    
+
     // Make the alt text column sortable
     add_filter('manage_upload_sortable_columns', function($columns) {
         $columns['altm_alt_text'] = 'alt_text';
         return $columns;
     });
-    
+
     // Add sorting functionality by alt text
     add_action('pre_get_posts', function($query) {
         if (!is_admin() || !$query->is_main_query()) {
             return;
         }
-        
+
         if ($query->get('orderby') === 'alt_text') {
             $query->set('meta_key', '_wp_attachment_image_alt');
             $query->set('orderby', 'meta_value');
         }
     });
-    
+
     // Add custom CSS for the alt text column
     add_action('admin_head', function() {
         ?>
@@ -144,18 +160,18 @@ function altm_add_generate_button_to_media_list() {
                 width: 20%; /* Set width for alt text column */
                 overflow-wrap: break-word;
             }
-            
+
             .column-altm_generate {
                 width: 12%; /* Set width for alt magic column */
                 text-align: center;
             }
-            
+
             /* Alt text styling */
             .altm-alt-text-truncated {
                 position: relative;
                 cursor: pointer;
             }
-            
+
             .altm-alt-text-full {
                 display: none;
                 position: absolute;
@@ -172,14 +188,14 @@ function altm_add_generate_button_to_media_list() {
                 overflow-y: auto;
                 text-align: left;
             }
-            
+
             .altm-alt-text-truncated:hover .altm-alt-text-full {
                 display: block;
             }
         </style>
         <?php
     });
-    
+
     // Callback to display alt text in the custom column
     add_action('manage_media_custom_column', function($column_name, $post_id) {
         if ('altm_alt_text' === $column_name) {
@@ -199,17 +215,17 @@ function altm_add_generate_button_to_media_list() {
             }
         }
     }, 10, 2);
-    
+
     // Add the button to the column
     add_action('manage_media_custom_column', function($column_name, $post_id) {
         if ($column_name !== 'altm_generate' || !wp_attachment_is_image($post_id)) {
             return;
         }
-        
+
         echo '<button type="button" class="button button-primary altm-media-list-generate" data-id="' . esc_attr($post_id) . '">Generate Alt Text</button>';
         echo '<span class="loader altm-media-list-spinner" style="display: none;"></span>';
     }, 10, 2);
-    
+
     // Enqueue the media list script
     add_action('admin_enqueue_scripts', 'altm_enqueue_media_list_script');
 }
@@ -222,16 +238,24 @@ function altm_enqueue_media_list_script($hook) {
     if ($hook !== 'upload.php') {
         return;
     }
-    
+
+    wp_enqueue_script(
+        'altm-local-site-unlock-modal',
+        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+        array('jquery'),
+        defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
+        true
+    );
+
     // Enqueue the script
     wp_enqueue_script(
         'alt-magic-media-list-button',
         plugin_dir_url(__FILE__) . '../scripts/altm-media-list-button.js',
-        array('jquery'),
+        array('jquery', 'altm-local-site-unlock-modal'),
         '1.0.0',
         true
     );
-    
+
     // Localize the script with data
     wp_localize_script(
         'alt-magic-media-list-button',
@@ -249,39 +273,39 @@ add_action('admin_enqueue_scripts', 'altm_enqueue_edit_attachment_scripts');
 
 function altm_enqueue_edit_attachment_scripts($hook) {
     global $post;
-    
+
     // Debug hook (limit noisy logs to relevant screens only)
     if ($hook === 'post.php' || $hook === 'upload.php') {
         altm_log('Alt Magic: Enqueuing scripts for hook: ' . $hook);
     }
-    
+
     // Only on attachment edit screen or media library
     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
     $action = isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '';
     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
     if (($hook === 'post.php' && isset($_GET['post']) && $action === 'edit') ||
         $hook === 'upload.php') {
-        
+
         if ($hook === 'post.php') {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
             $post_id = absint($_GET['post']);
             $post_type = get_post_type($post_id);
             $is_image = wp_attachment_is_image($post_id);
-            
+
             altm_log('Alt Magic: post.php - Post ID: ' . $post_id . ', Post Type: ' . $post_type . ', Is Image: ' . ($is_image ? 'Yes' : 'No'));
-            
+
             if ($post_type !== 'attachment' || !$is_image) {
                 altm_log('Alt Magic: Skipping - Not an image attachment');
                 return;
             }
         }
-        
+
         altm_log('Alt Magic: Enqueuing jQuery and admin styles');
-        
+
         wp_enqueue_script('jquery');
-        
+
         // Note: ajaxurl is already available in WordPress admin, no need to localize
-        
+
     }
 }
 
@@ -291,15 +315,23 @@ function altm_enqueue_edit_attachment_scripts($hook) {
 function altm_enqueue_post_editor_scripts($hook) {
     // Only on post edit screen
     if ($hook === 'post.php' || $hook === 'post-new.php') {
+        wp_enqueue_script(
+            'altm-local-site-unlock-modal',
+            plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+            array('jquery'),
+            defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
+            true
+        );
+
         // Enqueue the script
         wp_enqueue_script(
             'alt-magic-post-editor-button',
             plugin_dir_url(__FILE__) . '../scripts/altm-post-editor-button.js',
-            array('jquery'),
+            array('jquery', 'altm-local-site-unlock-modal'),
             '1.0.0',
             true
         );
-        
+
         // Localize the script with data
         wp_localize_script(
             'alt-magic-post-editor-button',

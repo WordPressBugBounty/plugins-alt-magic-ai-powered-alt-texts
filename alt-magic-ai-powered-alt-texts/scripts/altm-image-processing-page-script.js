@@ -31,6 +31,56 @@ jQuery(document).ready(function ($) {
         return IS_WPML_ACTIVE ? 6 : 5;
     }
 
+    function escapeHtml(value) {
+        return $('<div>').text(value === null || value === undefined ? '' : String(value)).html();
+    }
+
+    function getAltTextCellInnerHtml(altText) {
+        const displayText = altText
+            ? escapeHtml(altText)
+            : '<span style="color: #ff9999; font-style: italic;">Empty</span>';
+
+        return '<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + displayText + '</div>';
+    }
+
+    function updateLoadedTabAltText(imageId, altText) {
+        Object.keys(tabData).forEach(function (tab) {
+            const image = tabData[tab].images.find(function (item) {
+                return item.ID == imageId;
+            });
+
+            if (image) {
+                image.alt_text = altText;
+            }
+        });
+    }
+
+    function updateVisibleAltTextRows(imageId, altText) {
+        $('button.generate-alt-text[data-id="' + imageId + '"]').each(function () {
+            const row = $(this).closest('tr');
+            const altTextCell = row.find('.altm-alt-text-cell');
+
+            altTextCell.data('alt-text', altText);
+            altTextCell.html(getAltTextCellInnerHtml(altText));
+        });
+    }
+
+    function applyAltTextUpdateToLoadedPage(imageId, altText) {
+        updateLoadedTabAltText(imageId, altText);
+        updateVisibleAltTextRows(imageId, altText);
+    }
+
+    function isLocalSiteGenerationBlockedError(error) {
+        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
+            && window.altmIsLocalSiteGenerationBlocked(error);
+    }
+
+    function showLocalSiteGenerationBlockedModal(error) {
+        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
+            window.altmShowLocalSiteUnlockModal(error);
+        }
+    }
+
     function getLanguageBadgeTheme(languageCode) {
         const normalizedCode = (languageCode || '').toLowerCase();
         const baseCode = normalizedCode.split('-')[0];
@@ -457,14 +507,14 @@ jQuery(document).ready(function ($) {
 
         for (let i = 0; i < images.length; i++) {
             const image = images[i];
-            let altTextDisplay = image.alt_text ? image.alt_text : '<span style="color: #ff9999; font-style: italic;">Empty</span>';
+            const altTextValue = image.alt_text || '';
             let row = '<tr>' +
                 '<td><input type="checkbox" class="select-image" data-id="' + image.ID + '" /></td>' +
                 '<td>' + image.ID + '</td>' +
                 '<td style="padding-right: 20px;"><img src="' + image.image_url + '" style="height: 100px; width: 100px; max-width: 100px; border-radius: 4px; object-fit: cover;" loading="lazy" onerror="this.onerror=null; this.outerHTML=\'<div style=\\\'height: 100px; width: 100px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; color: #666; font-size: 12px;\\\'>Not Available</div>\';" /></td>' +
                 getLanguageCellHtml(image) +
-                '<td class="altm-alt-text-cell" data-alt-text="' + (image.alt_text ? image.alt_text.replace(/"/g, '&quot;') : '') + '" style="padding-left: 20px; padding-right: 20px;">' +
-                '<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + altTextDisplay + '</div>' +
+                '<td class="altm-alt-text-cell" data-alt-text="' + escapeHtml(altTextValue) + '" style="padding-left: 20px; padding-right: 20px;">' +
+                getAltTextCellInnerHtml(altTextValue) +
                 '</td>' +
                 '<td class="altm-actions-cell">' +
                 '<div class="altm-button-group">' +
@@ -936,8 +986,9 @@ jQuery(document).ready(function ($) {
 
                 if (response.success && response.data) {
                     // Process each result from the batch
-                    const activeTab = $('.tab-content.active').attr('id').replace('tab-content-', '');
                     let hasCreditsError = false;
+                    let hasLocalSiteError = false;
+                    let localSiteError = null;
 
                     Object.keys(response.data).forEach(attachmentId => {
                         const result = response.data[attachmentId];
@@ -946,11 +997,7 @@ jQuery(document).ready(function ($) {
                         if (result.success && result.alt_text) {
                             bulkProcessing.successCount++;
 
-                            // Update the data in memory for the current page
-                            let image = tabData[activeTab].images.find(img => img.ID == imageId);
-                            if (image) {
-                                image.alt_text = result.alt_text;
-                            }
+                            applyAltTextUpdateToLoadedPage(imageId, result.alt_text);
 
                             // Update credits from response (use the last valid credits count)
                             if (result.credits_available !== null) {
@@ -963,10 +1010,15 @@ jQuery(document).ready(function ($) {
 
                             // Check if failure is due to insufficient credits (not server errors like 503/timeout)
                             const errorMessage = result.message || 'Unable to process';
+                            const isLocalSiteError = isLocalSiteGenerationBlockedError(result);
                             const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
                                 errorMessage.toLowerCase().includes('insufficient') ||
                                 (typeof result.credits_available === 'number' && result.credits_available <= 0);
-                            if (isCreditsError) {
+                            if (isLocalSiteError) {
+                                bulkProcessing.shouldCancel = true;
+                                hasLocalSiteError = true;
+                                localSiteError = result;
+                            } else if (isCreditsError) {
                                 bulkProcessing.stoppedDueToCredits = true;
                                 bulkProcessing.shouldCancel = true;
                                 hasCreditsError = true;
@@ -978,6 +1030,11 @@ jQuery(document).ready(function ($) {
                         bulkProcessing.processedCount++;
                         updateProgress();
                     });
+
+                    if (hasLocalSiteError) {
+                        showLocalSiteGenerationBlockedModal(localSiteError);
+                        break;
+                    }
 
                     // Break the loop if any image failed due to credits
                     if (hasCreditsError) {
@@ -999,12 +1056,18 @@ jQuery(document).ready(function ($) {
                             errorMessage = response.data.message;
                         }
 
+                        if (isLocalSiteGenerationBlockedError(response.data)) {
+                            bulkProcessing.shouldCancel = true;
+                            shouldStopProcessing = true;
+                            showLocalSiteGenerationBlockedModal(response.data);
+                        }
+
                         // Detect credit-related errors only (not server/timeout errors like 503)
                         const hasCreditsFields = typeof response.data.credits_available === 'number' && typeof response.data.credits_required === 'number';
                         const isCreditsError = (errorMessage.toLowerCase().includes('credit') ||
                             errorMessage.toLowerCase().includes('insufficient') ||
                             hasCreditsFields) && !errorMessage.toLowerCase().includes('temporarily unavailable') && !errorMessage.toLowerCase().includes('timeout');
-                        if (isCreditsError) {
+                        if (!shouldStopProcessing && isCreditsError) {
                             bulkProcessing.stoppedDueToCredits = true;
                             bulkProcessing.shouldCancel = true;
                             shouldStopProcessing = true;
@@ -1103,6 +1166,8 @@ jQuery(document).ready(function ($) {
             }
 
             let hasCreditsError = false;
+            let hasLocalSiteError = false;
+            let localSiteError = null;
 
             processedIds.forEach(function (imageId) {
                 const result = results[imageId] || results[String(imageId)] || {};
@@ -1110,12 +1175,7 @@ jQuery(document).ready(function ($) {
                 if (result.success && result.alt_text) {
                     bulkProcessing.successCount++;
 
-                    const image = tabData[bulkProcessing.queryTab].images.find(function (item) {
-                        return item.ID == imageId;
-                    });
-                    if (image) {
-                        image.alt_text = result.alt_text;
-                    }
+                    applyAltTextUpdateToLoadedPage(imageId, result.alt_text);
 
                     if (result.credits_available !== null && result.credits_available !== undefined) {
                         updateCreditsFromResponse({
@@ -1126,11 +1186,16 @@ jQuery(document).ready(function ($) {
                     bulkProcessing.failedCount++;
 
                     const errorMessage = result.message || 'Unable to process';
+                    const isLocalSiteError = isLocalSiteGenerationBlockedError(result);
                     const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
                         errorMessage.toLowerCase().includes('insufficient') ||
                         (typeof result.credits_available === 'number' && result.credits_available <= 0);
 
-                    if (isCreditsError) {
+                    if (isLocalSiteError) {
+                        bulkProcessing.shouldCancel = true;
+                        hasLocalSiteError = true;
+                        localSiteError = result;
+                    } else if (isCreditsError) {
                         bulkProcessing.stoppedDueToCredits = true;
                         bulkProcessing.shouldCancel = true;
                         hasCreditsError = true;
@@ -1142,6 +1207,11 @@ jQuery(document).ready(function ($) {
                 bulkProcessing.processedCount++;
                 updateProgress();
             });
+
+            if (hasLocalSiteError) {
+                showLocalSiteGenerationBlockedModal(localSiteError);
+                break;
+            }
 
             bulkProcessing.cursorId = parseInt(response.data.next_cursor, 10) || 0;
 
@@ -1188,8 +1258,6 @@ jQuery(document).ready(function ($) {
 
         // Clear any remaining queue
         bulkProcessing.queue = [];
-
-        refreshAllTabs();
     }
 
     function startBulkProcessing(items) {
@@ -1344,11 +1412,11 @@ jQuery(document).ready(function ($) {
                         <h3 style="margin: 0; color: #b70000;">⚠️ No Credits Remaining</h3>
                         <button id="close-no-credits-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
                     </div>
-                    
+
                     <div style="margin-bottom: 20px; line-height: 1.6;">
                         <p style="margin: 0;">${message}</p>
                     </div>
-                    
+
                     <div style="text-align: end;">
                         <button id="dismiss-no-credits" class="button" style="margin-right: 10px;">Dismiss</button>
                         <a href="${purchaseUrl}" target="_blank" class="button button-primary">Purchase Credits</a>
@@ -1421,6 +1489,12 @@ jQuery(document).ready(function ($) {
         }, function (response) {
             //console.log('Response received:', response);
 
+            if (isLocalSiteGenerationBlockedError(response)) {
+                button.text('Generate alt text').prop('disabled', false);
+                showLocalSiteGenerationBlockedModal(response);
+                return;
+            }
+
             // Check for authentication errors first
             if (response.success === false && response.status_code === 403) {
                 // Check if it's an authentication error
@@ -1432,19 +1506,10 @@ jQuery(document).ready(function ($) {
             if (response.success) {
                 // Check if alt_text is actually generated
                 if (response.data && response.data.alt_text && response.data.alt_text !== null) {
-                    const altTextCell = button.closest('tr').find('.altm-alt-text-cell');
-                    altTextCell.data('alt-text', response.data.alt_text);
-                    altTextCell.html('<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + response.data.alt_text + '</div>');
-                    // Also update the alt text in the current page data
-                    let tab = button.closest('.tab-content').attr('id').replace('tab-content-', '');
-                    let image = tabData[tab].images.find(img => img.ID == attachmentId);
-                    if (image) {
-                        image.alt_text = response.data.alt_text;
-                    }
+                    applyAltTextUpdateToLoadedPage(attachmentId, response.data.alt_text);
                     // Update credits from response
                     updateCreditsFromResponse(response);
                     button.text('Generate alt text').prop('disabled', false);
-                    refreshAllTabs();
                 } else {
                     // Handle null alt_text as an error
                     console.log('Alt text is null');
@@ -1475,6 +1540,11 @@ jQuery(document).ready(function ($) {
         }).fail(function (xhr, status, error) {
             console.log('AJAX fail:', xhr, status, error);
             button.text('Generate alt text').prop('disabled', false);
+
+            if (isLocalSiteGenerationBlockedError(xhr)) {
+                showLocalSiteGenerationBlockedModal(xhr);
+                return;
+            }
 
             let errorHtml = '<div class="altm-error-message" style="color: #d63638; font-size: 11px; margin-top: 8px; line-height: 1.2; display: block;">Error: Unable to process the image.</div>';
             button.closest('.altm-actions-cell').append(errorHtml);
@@ -1610,7 +1680,7 @@ jQuery(document).ready(function ($) {
                             <img src="${imageUrl}" alt="Image Preview" style="max-width: 100%; max-height: 150px; border-radius: 4px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         </div>
                         <label for="altm-edit-alt-textarea">Alt Text:</label>
-                        <textarea id="altm-edit-alt-textarea" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">${currentAltText}</textarea>
+                        <textarea id="altm-edit-alt-textarea" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">${escapeHtml(currentAltText)}</textarea>
                         <input type="hidden" id="altm-edit-image-id" value="${imageId}">
                     </div>
                     <div class="altm-modal-footer">
@@ -1658,26 +1728,12 @@ jQuery(document).ready(function ($) {
             nonce: altmImageProcessing.generateAltTextNonce
         }, function (response) {
             // Update the alt text in the table
-            const row = $('button.altm-edit-alt-text[data-id="' + imageId + '"]').closest('tr');
-            const altTextCell = row.find('.altm-alt-text-cell');
-
-            altTextCell.data('alt-text', newAltText);
-            const displayText = newAltText ? newAltText : '<span style="color: #ff9999; font-style: italic;">Empty</span>';
-            altTextCell.html('<div style="padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 13px; background: linear-gradient(135deg, #f9f9f9 0%, #e8e8e8 100%); word-wrap: break-word; line-height: 1.4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">' + displayText + '</div>');
-
-            // Update the data in memory for the current page
-            const activeTab = row.closest('.tab-content').attr('id').replace('tab-content-', '');
-            let image = tabData[activeTab].images.find(img => img.ID == imageId);
-            if (image) {
-                image.alt_text = newAltText;
-            }
+            applyAltTextUpdateToLoadedPage(imageId, newAltText);
 
             // Close modal
             $('#altm-edit-alt-modal').fadeOut(200, function () {
                 $(this).remove();
             });
-
-            refreshAllTabs();
 
             // Show success message briefly
             const successMsg = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0;"><p>Alt text updated successfully!</p></div>');
@@ -1692,4 +1748,4 @@ jQuery(document).ready(function ($) {
             button.text('Save').prop('disabled', false);
         });
     });
-}); 
+});

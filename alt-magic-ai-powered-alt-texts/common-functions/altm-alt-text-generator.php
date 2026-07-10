@@ -14,6 +14,18 @@ require_once(plugin_dir_path(__FILE__) . '../integrations-functions/altm-fetch-a
 require_once(plugin_dir_path(__FILE__) . '../admin-functions/altm-supported-languages.php');
 require_once(plugin_dir_path(__FILE__) . 'altm-seo-keywords-fetcher.php');
 
+function altm_is_local_site_generation_blocked_message($message) {
+    if (!is_string($message) || $message === '') {
+        return false;
+    }
+
+    $normalized_message = strtolower($message);
+
+    return strpos($normalized_message, 'local development site') !== false
+        || strpos($normalized_message, 'publicly accessible site url') !== false
+        || strpos($normalized_message, 'publicly accessible site') !== false;
+}
+
 
 // Single alt text generation
 
@@ -21,7 +33,7 @@ require_once(plugin_dir_path(__FILE__) . 'altm-seo-keywords-fetcher.php');
 function altm_generate_alt_text($attachment_id, $source = 'missing') {
     altm_log('############################################');
     altm_log('Starting altm_generate_alt_text for attachment ID: ' . $attachment_id);
-    
+
     global $altm_supported_languages;
     $attachment = get_post($attachment_id);
     $user_id = get_option('alt_magic_user_id');
@@ -43,7 +55,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
     altm_log('use_seo_keywords: ' . $use_seo_keywords);
     altm_log('use_post_title: ' . $use_post_title);
     altm_log('Attachment: ' . print_r($attachment, true));
-    
+
 
     if (
         !$attachment ||
@@ -63,13 +75,13 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
 
     //$image_url = set_url_scheme($image_url, 'https'); // Force HTTPS
     $file_extension = pathinfo($image_url, PATHINFO_EXTENSION);
-    $image_name = substr(strrchr($image_url, '/'), 1);  
+    $image_name = substr(strrchr($image_url, '/'), 1);
 
     // Image URL and file extension logs
     altm_log('Image URL: ' . $image_url);
     altm_log('File extension: ' . $file_extension);
     altm_log('Image name: ' . $image_name);
-    
+
     // Fetch primary content post once if options are enabled
     if ($use_seo_keywords || $use_post_title || $use_woocommerce_product_name) {
         $parent = altm_get_primary_parent_post($attachment_id);
@@ -184,9 +196,11 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
         // Handle 403 Forbidden responses
         $error_message = isset($response_data['message']) ? $response_data['message'] : 'Forbidden';
         altm_log("Alt Magic API returned 403 Forbidden: " . $error_message);
-        
+
         // Check if it's a credits error or authentication error
-        if (isset($response_data['message']) && $response_data['message'] == 'No credits remaining.') {
+        if (altm_is_local_site_generation_blocked_message($error_message)) {
+            return [false, 'local_site_blocked', $error_message, 403];
+        } else if (isset($response_data['message']) && $response_data['message'] == 'No credits remaining.') {
             return [false, 'no_credits', $error_message];
         } else {
             // Authentication or other 403 errors - pass through the message
@@ -220,13 +234,47 @@ function altm_prepare_alt_text_output($alt_text) {
     return trim($alt_text);
 }
 
+function altm_sync_alt_text_to_posts_safely($attachment_id, $alt_text) {
+    if (!function_exists('altm_update_alt_text_in_all_posts')) {
+        altm_log('Post-content alt sync skipped because the update helper is unavailable.');
+        return false;
+    }
+
+    $buffer_level = ob_get_level();
+    $unexpected_output = '';
+    $sync_completed = true;
+
+    ob_start();
+
+    try {
+        altm_update_alt_text_in_all_posts($attachment_id, $alt_text);
+    } catch (Throwable $e) {
+        $sync_completed = false;
+        altm_log('Post-content alt sync failed for attachment ID ' . $attachment_id . ': ' . $e->getMessage());
+    }
+
+    while (ob_get_level() > $buffer_level) {
+        $buffer_contents = ob_get_clean();
+        if (is_string($buffer_contents) && $buffer_contents !== '') {
+            $unexpected_output .= $buffer_contents;
+        }
+    }
+
+    if ($unexpected_output !== '') {
+        $output_summary = trim(wp_strip_all_tags($unexpected_output));
+        altm_log('Suppressed unexpected output during post-content alt sync for attachment ID ' . $attachment_id . ': ' . substr($output_summary, 0, 500));
+    }
+
+    return $sync_completed;
+}
+
 // Process alt text settings for post alt generation processing
 function altm_process_alt_settings($attachment_id, $alt_text) {
     // Fetch each option individually
     $use_for_title = get_option('alt_magic_use_for_title', 0);
     $use_for_caption = get_option('alt_magic_use_for_caption', 0);
     $use_for_description = get_option('alt_magic_use_for_description', 0);
-    
+
 
     altm_log('use_for_title: ' . $use_for_title);
     altm_log('use_for_caption: ' . $use_for_caption);
@@ -256,9 +304,11 @@ function altm_process_alt_settings($attachment_id, $alt_text) {
     update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
 
     altm_log('Updating attachment alt text in all posts/pages containing this image');
-    altm_update_alt_text_in_all_posts($attachment_id, $alt_text);
+    if (!altm_sync_alt_text_to_posts_safely($attachment_id, $alt_text)) {
+        altm_log('Post-content alt sync did not complete; attachment alt text remains saved for attachment ID: ' . $attachment_id);
+    }
 
-    altm_log('Updation finished'); 
+    altm_log('Updation finished');
 }
 
 
@@ -272,10 +322,10 @@ function altm_process_alt_settings($attachment_id, $alt_text) {
  */
 function altm_generate_alt_text_batch($attachment_ids) {
     altm_log('Starting batch alt text generation for ' . count($attachment_ids) . ' images');
-    
+
     $api_key = get_option('alt_magic_api_key');
     $user_id = get_option('alt_magic_user_id');
-    
+
     if (empty($api_key) || empty($user_id)) {
         return array_fill_keys($attachment_ids, array(
             'success' => false,
@@ -293,49 +343,49 @@ function altm_generate_alt_text_batch($attachment_ids) {
         else $max_concurrency = 10;
     }
     $batch_size = $max_concurrency; // Use the concurrency value directly as batch size
-    
+
     altm_log('Processing ' . count($attachment_ids) . ' images with batch size: ' . $batch_size);
-    
+
     // Prepare array of image objects
     $all_image_data = array();
     $valid_attachment_ids = array();
-    
+
     foreach ($attachment_ids as $attachment_id) {
         $image_data = altm_prepare_batch_image_data($attachment_id);
-        
+
         if ($image_data === false) {
             continue; // Skip invalid attachments
         }
-        
+
         $all_image_data[] = $image_data;
         $valid_attachment_ids[] = $attachment_id;
     }
-    
+
     if (empty($all_image_data)) {
         return array();
     }
-    
+
     // Split images into batches
     $image_batches = array_chunk($all_image_data, $batch_size);
     $attachment_id_batches = array_chunk($valid_attachment_ids, $batch_size);
-    
+
     altm_log('Split into ' . count($image_batches) . ' batches of max ' . $batch_size . ' images each');
-    
+
     $all_results = array();
-    
+
     // Process each batch
     foreach ($image_batches as $batch_index => $images_batch) {
         $batch_attachment_ids = $attachment_id_batches[$batch_index];
-        
+
         altm_log('Processing batch ' . ($batch_index + 1) . '/' . count($image_batches) . ' with ' . count($images_batch) . ' images');
-        
+
         // Create the request body with proper structure
         $request_body = array(
             'user_id' => $user_id,
             'site_url' => get_site_url(),
             'images' => $images_batch
         );
-        
+
         // Send batch request
         $args = array(
             'body'        => wp_json_encode($request_body),
@@ -371,14 +421,14 @@ function altm_generate_alt_text_batch($attachment_ids) {
 
         if ($response_code === 200 && isset($response_data['success']) && ($response_data['success'] === true || $response_data['success'] === 1)) {
             altm_log('Batch ' . ($batch_index + 1) . ' successful. Total processed: ' . $response_data['total_processed'] . ', Successful: ' . $response_data['successful'] . ', Failed: ' . $response_data['failed']);
-            
+
             // Process each result from the batch response
             if (isset($response_data['results']) && is_array($response_data['results'])) {
                 foreach ($response_data['results'] as $result) {
                     // Use image_id from the result instead of array index
                     if (isset($result['image_id'])) {
                         $attachment_id = intval($result['image_id']);
-                        
+
                         // Only process if this attachment_id was in our current batch
                         if (in_array($attachment_id, $batch_attachment_ids)) {
                             if (isset($result['success']) && ($result['success'] === true || $result['success'] === 1) && isset($result['alt_text']) && !empty($result['alt_text'])) {
@@ -387,7 +437,7 @@ function altm_generate_alt_text_batch($attachment_ids) {
                                 // Use altm_process_alt_settings to update alt text, caption, and description
                                 // when the respective flags (alt_magic_use_for_caption, alt_magic_use_for_description) are enabled
                                 altm_process_alt_settings($attachment_id, $alt_text);
-                                
+
                                 $all_results[$attachment_id] = array(
                                     'success' => true,
                                     'alt_text' => $alt_text,
@@ -411,9 +461,23 @@ function altm_generate_alt_text_batch($attachment_ids) {
             $is_credits_error = false;
             $include_credits_in_result = true;
             $stop_processing = false;
+            $error_code = '';
+
+            $api_error_text = '';
+            if (isset($response_data['message']) && is_string($response_data['message'])) {
+                $api_error_text = $response_data['message'];
+            } elseif (isset($response_data['error']) && is_string($response_data['error'])) {
+                $api_error_text = $response_data['error'];
+            }
 
             // Handle 502/503/504 (server/timeout errors) — do NOT treat as out of credits
-            if (in_array($response_code, array(502, 503, 504), true)) {
+            if (altm_is_local_site_generation_blocked_message($api_error_text)) {
+                $error_message = $api_error_text;
+                $error_code = 'local_site_blocked';
+                $include_credits_in_result = false;
+                $stop_processing = true;
+                altm_log('Batch ' . ($batch_index + 1) . ' stopped because local site generation is blocked');
+            } elseif (in_array($response_code, array(502, 503, 504), true)) {
                 $error_message = __('Generation timeout. Please try this image again.', 'alt-magic');
                 $include_credits_in_result = false;
                 altm_log('Batch ' . ($batch_index + 1) . ' received ' . $response_code . ' (server/timeout error), continuing with next batch');
@@ -497,6 +561,9 @@ function altm_generate_alt_text_batch($attachment_ids) {
                     'success' => false,
                     'message' => $error_message
                 );
+                if ($error_code !== '') {
+                    $result_entry['error_code'] = $error_code;
+                }
                 if ($include_credits_in_result && isset($response_data['credits_available'])) {
                     $result_entry['credits_available'] = $response_data['credits_available'];
                 }
@@ -514,7 +581,7 @@ function altm_generate_alt_text_batch($attachment_ids) {
             }
         }
     }
-    
+
     return $all_results;
 }
 
@@ -523,11 +590,11 @@ function altm_generate_alt_text_batch($attachment_ids) {
  */
 function altm_prepare_batch_image_data($attachment_id) {
     $attachment = get_post($attachment_id);
-    
+
     if (!$attachment || $attachment->post_type !== 'attachment' || strpos($attachment->post_mime_type, 'image/') !== 0) {
         return false;
     }
-    
+
     $use_seo_keywords = get_option('alt_magic_use_seo_keywords', 0);
     $use_post_title = get_option('alt_magic_use_post_title', 0);
     $use_woocommerce_product_name = get_option('alt_magic_woocommerce_use_product_name', 0);
@@ -557,7 +624,7 @@ function altm_prepare_batch_image_data($attachment_id) {
     if ($use_seo_keywords && $primary_post_id) {
         $keywords_array = altm_fetch_seo_keywords_array($primary_post_id);
     }
-    
+
     // Get post title vs product name following the same rule as single generation
     $parent_post_title = '';
     $woocommerce_product_name = '';
@@ -570,7 +637,7 @@ function altm_prepare_batch_image_data($attachment_id) {
             $woocommerce_product_name = '';
         }
     }
-    
+
     $image_data = array(
         'image' => '', // Empty for URL-based images
         'title' => $parent_post_title,
@@ -591,7 +658,7 @@ function altm_prepare_batch_image_data($attachment_id) {
         'language_type' => 'code',
         'language' => $language_code
     );
-    
+
     // Handle private sites with base64 encoding
     if ($site_visibility == 1) {
         $image_content = base64_encode( file_get_contents( get_attached_file( $attachment_id ) ) );
@@ -601,7 +668,7 @@ function altm_prepare_batch_image_data($attachment_id) {
         $image_data['image_type'] = 'file';
         $image_data['image_url'] = '';
     }
-    
+
     return $image_data;
 }
 

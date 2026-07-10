@@ -20,7 +20,7 @@ function altm_render_image_renaming_page() {
     $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
     $wpml_current_language = altm_get_wpml_current_language_data();
     $wpml_display_message = '';
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.8';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.9';
 
     if ($is_wpml_active) {
         if ($wpml_bulk_image_scope === 'all_images') {

@@ -13,7 +13,7 @@ function alt_magic_render_bulk_generation_page() {
 
     $image_stats = altm_get_image_stats();
     $is_account_active = get_option('alt_magic_account_active');
-    
+
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing bulk generation page CSS');
     wp_enqueue_style(
@@ -23,11 +23,19 @@ function alt_magic_render_bulk_generation_page() {
         '2.1.0'  // Version number - updated to force cache refresh
     );
 
+    wp_enqueue_script(
+        'altm-local-site-unlock-modal',
+        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
+        array('jquery'),
+        defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '2.1.0',
+        true
+    );
+
     // Register and enqueue the JavaScript file
     wp_register_script(
         'alt-magic-bulk-generation-js',
         esc_url(plugin_dir_url(__FILE__) . '../scripts/altm-bulk-generation-page-script.js'),
-        array('jquery'), // Dependencies
+        array('jquery', 'altm-local-site-unlock-modal'), // Dependencies
         '2.1.0', // Version number - updated to force cache refresh
         true // Load in footer
     );
@@ -35,10 +43,10 @@ function alt_magic_render_bulk_generation_page() {
 
     // Get user email for purchase link
     $user_email = get_option('alt_magic_user_id', '');
-    $purchase_url = !empty($user_email) 
+    $purchase_url = !empty($user_email)
         ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
         : 'https://www.altmagic.pro/pricing';
-    
+
     // Pass data to the JavaScript file
     wp_localize_script('alt-magic-bulk-generation-js', 'altMagicBulkGeneration', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
@@ -110,22 +118,22 @@ function alt_magic_render_bulk_generation_page() {
 
                 <div class="bulk-generation-settings-action-item">
                     <button class="bulk-generation-settings-action-button" id="generate-bulk-alt-texts">
-                        Generate Alt Texts 
+                        Generate Alt Texts
                     </button>
                     <button class="bulk-generation-settings-action-button" id="stop-bulk-alt-texts" style="display: none;">
                         Stop
                     </button>
                     <!-- <span id="image-count" style="margin-top: 32px;">[Scope: <?php echo esc_html($image_stats['images_with_missing_alt']); ?> image<?php echo esc_html($image_stats['images_with_missing_alt'] == 1 ? '' : 's'); ?>]</span> -->
 
-                    <div id="spinner" style="display: none;"> 
+                    <div id="spinner" style="display: none;">
                         <!-- Loading... -->
                     </div>
                 </div>
 
                 <div class="account-info-container">
-                    <p id="account-info-text" style="font-size: 14px; color: #333;"><?php 
-                    echo wp_kses_post($is_account_active ? 
-                    'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>' 
+                    <p id="account-info-text" style="font-size: 14px; color: #333;"><?php
+                    echo wp_kses_post($is_account_active ?
+                    'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>'
                     : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
                 </div>
 
