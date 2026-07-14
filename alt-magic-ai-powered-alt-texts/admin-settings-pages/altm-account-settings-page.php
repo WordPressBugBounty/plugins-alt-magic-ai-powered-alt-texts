@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 // Render plugin settings page
 function alt_magic_render_settings_page() {
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.9';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.10';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -47,7 +47,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.9';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.10';
     $alt_text_language = get_option('alt_magic_language', 'en');
     $rename_language = get_option('alt_magic_rename_language', 'en');
     $onboarding_done = get_option('alt_magic_onboarding_done', 0);
@@ -624,7 +624,12 @@ function alt_magic_save_api_key() {
     if (!wp_verify_nonce($nonce, 'alt_magic_save_api_key_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
         return;
-    }   
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        return;
+    }
 
     if ( isset( $_POST['api_key'] ) && isset( $_POST['user_id'] ) ) {
         $api_key = sanitize_text_field( wp_unslash($_POST['api_key']) );
@@ -645,6 +650,11 @@ function alt_magic_remove_api_key() {
     $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
     if (!wp_verify_nonce($nonce, 'alt_magic_remove_api_key_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
+        return;
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
         return;
     }
 
@@ -753,7 +763,7 @@ function alt_magic_wp_auto_register() {
     $email = $current_user->user_email;
     $domain = get_site_url();
 
-    altm_log('WordPress auto-register - User email: ' . $email . ', Domain: ' . $domain);
+    altm_log('WordPress auto-register request prepared.');
 
     if (empty($email)) {
         altm_log('WordPress auto-register - Error: User email is empty');
@@ -789,7 +799,6 @@ function alt_magic_wp_auto_register() {
     $response_body = wp_remote_retrieve_body($response);
     
     altm_log('WordPress auto-register - API response code: ' . $response_code);
-    altm_log('WordPress auto-register - API response body: ' . $response_body);
     
     if ($response_code !== 200) {
         altm_log('WordPress auto-register - Error: Non-200 response code');

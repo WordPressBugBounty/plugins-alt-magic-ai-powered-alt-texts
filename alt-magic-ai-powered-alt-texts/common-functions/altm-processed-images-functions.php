@@ -91,8 +91,6 @@ function altm_get_processed_images_data() {
         return;
     }
 
-    altm_log('Processed images data: ' . print_r($data, true));
-    
     // Process alt text to prevent over-escaping of quotes
     if (isset($data['user_images_data']) && is_array($data['user_images_data'])) {
         foreach ($data['user_images_data'] as &$image) {
@@ -104,7 +102,10 @@ function altm_get_processed_images_data() {
         unset($image); // Break the reference
     }
     
-    altm_log('Successfully fetched processed images data: ' . count($data['user_images_data']) . ' images found.');
+    $processed_image_count = isset($data['user_images_data']) && is_array($data['user_images_data'])
+        ? count($data['user_images_data'])
+        : 0;
+    altm_log('Successfully fetched processed images data: ' . $processed_image_count . ' images found.');
     
     // Send JSON response with flags to prevent auto-escaping
     wp_send_json($data);
@@ -175,7 +176,7 @@ function altm_get_attachment_url() {
     }
     
     if ($url) {
-        altm_log('Successfully retrieved URL for attachment ID: ' . $attachment_id . ' - ' . $url);
+        altm_log('Successfully retrieved URL for attachment ID: ' . $attachment_id);
         wp_send_json_success(array(
             'url' => $url,
             'attachment_id' => $attachment_id
@@ -188,4 +189,4 @@ function altm_get_attachment_url() {
         ));
     }
 }
-add_action('wp_ajax_altm_get_attachment_url', 'altm_get_attachment_url'); 
+add_action('wp_ajax_altm_get_attachment_url', 'altm_get_attachment_url');

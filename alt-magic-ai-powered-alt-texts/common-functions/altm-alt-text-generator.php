@@ -54,7 +54,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
     altm_log('Language source: ' . $language_resolution['source']);
     altm_log('use_seo_keywords: ' . $use_seo_keywords);
     altm_log('use_post_title: ' . $use_post_title);
-    altm_log('Attachment: ' . print_r($attachment, true));
+    altm_log('Attachment loaded: ' . ($attachment ? 'yes' : 'no'));
 
 
     if (
@@ -75,12 +75,9 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
 
     //$image_url = set_url_scheme($image_url, 'https'); // Force HTTPS
     $file_extension = pathinfo($image_url, PATHINFO_EXTENSION);
-    $image_name = substr(strrchr($image_url, '/'), 1);
 
-    // Image URL and file extension logs
-    altm_log('Image URL: ' . $image_url);
+    // Image metadata logs
     altm_log('File extension: ' . $file_extension);
-    altm_log('Image name: ' . $image_name);
 
     // Fetch primary content post once if options are enabled
     if ($use_seo_keywords || $use_post_title || $use_woocommerce_product_name) {
@@ -207,7 +204,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
             return [false, 'authentication_error', $error_message, 403];
         }
     } else {
-        altm_log("Alt Magic API unexpected response: Code $response_code, Body: $response_body");
+        altm_log("Alt Magic API unexpected response code: $response_code");
         $error_message = isset($response_data['message']) ? $response_data['message'] : 'unexpected_response';
         return [false, 'unexpected_response', $error_message, $response_code];
     }

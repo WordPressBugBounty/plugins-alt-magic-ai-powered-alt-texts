@@ -517,12 +517,12 @@ function altm_override_attachment_metadata($attachment_id) {
         altm_log("Attachment metadata updated - Title: '$new_title', Slug: '$new_slug'");
     }
     
-    // Also log the EXIF data for debugging
+    // Detect EXIF data without writing potentially sensitive metadata to logs.
     // Check if function exists (may not be loaded in all WordPress contexts)
     if (function_exists('wp_read_image_metadata')) {
         $exif_data = wp_read_image_metadata($attached_file);
         if ($exif_data) {
-            altm_log("EXIF data from attachment file: " . print_r($exif_data, true));
+            altm_log('EXIF metadata detected for attachment.');
         }
     } else {
         // Function not available - try to load it if we're in admin context
@@ -531,7 +531,7 @@ function altm_override_attachment_metadata($attachment_id) {
             if (function_exists('wp_read_image_metadata')) {
                 $exif_data = wp_read_image_metadata($attached_file);
                 if ($exif_data) {
-                    altm_log("EXIF data from attachment file: " . print_r($exif_data, true));
+                    altm_log('EXIF metadata detected for attachment.');
                 }
             }
         }

@@ -6,11 +6,14 @@ if (!defined('ABSPATH')) {
 }
 
 function alt_magic_render_help_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('Insufficient permissions.', 'alt-magic'), '', array('response' => 403));
+    }
     
     $current_debug_mode = get_option('altm_debug_mode', 0);
 
     // Path to the error log file
-    $log_file_path = ABSPATH . 'wp-content/altm_debug.log'; // Adjust the path as needed
+    $log_file_path = altm_get_log_file_path();
 
     // Check if the log file exists and is readable
     $log_file_size = 0;
@@ -18,20 +21,16 @@ function alt_magic_render_help_page() {
         $logs = file_get_contents($log_file_path);
         $log_file_size = filesize($log_file_path);
         
-        // Filter logs to include only those starting with ""
-        $filtered_logs = '';
-        $log_lines = explode("\n", $logs);
-        foreach ($log_lines as $line) {
-            if (strpos($line, '') !== false) { // Check if the line contains ""
-                $filtered_logs .= $line . "\n";
-            }
-        }
+        $filtered_logs = $logs;
     } else {
-        $filtered_logs = 'Error log file not found or not readable.';
+        $filtered_logs = 'No debug activity has been recorded yet. This is normal; logs will appear here when available.';
     }
 
     // Add a download link for the log file
-    $download_url = admin_url('admin-post.php?action=download_altm_log');
+    $download_url = wp_nonce_url(
+        admin_url('admin-post.php?action=download_altm_log'),
+        'altm_download_log'
+    );
 
     ?>
     <div class="wrap">
@@ -218,35 +217,38 @@ function alt_magic_render_help_page() {
 add_action('admin_post_download_altm_log', 'altm_download_log_file');
 
 function altm_download_log_file() {
-    $log_file_path = ABSPATH . 'wp-content/altm_debug.log'; // Adjust the path as needed
-    $log_file_name = gmdate('Y-m-d_H-i-s') . '_altmagic_debug.log';
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('Insufficient permissions.', 'alt-magic'), '', array('response' => 403));
+    }
+
+    check_admin_referer('altm_download_log');
+
+    $log_file_path = altm_get_log_file_path();
+    $log_file_name = sanitize_file_name(gmdate('Y-m-d_H-i-s') . '_altmagic_debug.log');
 
     if (file_exists($log_file_path) && is_readable($log_file_path)) {
-        // Initialize WP_Filesystem
-        global $wp_filesystem;
-        if (empty($wp_filesystem)) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            WP_Filesystem();
-        }
-        
-        // Read file contents using WP_Filesystem
-        $file_contents = $wp_filesystem->get_contents($log_file_path);
+        $file_contents = file_get_contents($log_file_path);
         
         if ($file_contents !== false) {
+            nocache_headers();
             header('Content-Description: File Transfer');
             header('Content-Type: application/octet-stream');
             header('Content-Disposition: attachment; filename="' . $log_file_name . '"');
-            header('Expires: 0');
-            header('Cache-Control: must-revalidate');
-            header('Pragma: public');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('X-Content-Type-Options: nosniff');
             header('Content-Length: ' . strlen($file_contents));
             echo $file_contents; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Raw file contents for download
             exit;
         } else {
-            wp_die('Error reading log file.');
+            wp_die(esc_html__('Error reading log file.', 'alt-magic'), '', array('response' => 500));
         }
     } else {
-        wp_die('Error log file not found or not readable.');
+        wp_die(
+            esc_html__('No debug log is available yet. Use the plugin with debug mode enabled, then try again.', 'alt-magic'),
+            '',
+            array('response' => 404)
+        );
     }
 }
 
@@ -267,11 +269,11 @@ function altm_clear_logs_ajax_handler() {
         wp_die('Insufficient permissions');
     }
     
-    $log_file_path = ABSPATH . 'wp-content/altm_debug.log';
+    $log_file_path = altm_get_log_file_path();
     
     // Clear the log file
     if (file_exists($log_file_path)) {
-        if (file_put_contents($log_file_path, '') !== false) {
+        if (file_put_contents($log_file_path, '', LOCK_EX) !== false) {
             wp_send_json_success(array('message' => 'Logs cleared successfully'));
         } else {
             wp_send_json_error(array('message' => 'Failed to clear logs'));
@@ -292,7 +294,7 @@ function altm_get_log_size_ajax_handler() {
         wp_die('Insufficient permissions');
     }
     
-    $log_file_path = ABSPATH . 'wp-content/altm_debug.log';
+    $log_file_path = altm_get_log_file_path();
     $log_file_size = 0;
     
     if (file_exists($log_file_path)) {
@@ -313,7 +315,7 @@ function altm_refresh_logs_ajax_handler() {
         wp_die('Insufficient permissions');
     }
     
-    $log_file_path = ABSPATH . 'wp-content/altm_debug.log';
+    $log_file_path = altm_get_log_file_path();
     $log_file_size = 0;
     $filtered_logs = '';
     
@@ -322,15 +324,9 @@ function altm_refresh_logs_ajax_handler() {
         $logs = file_get_contents($log_file_path);
         $log_file_size = filesize($log_file_path);
         
-        // Filter logs to include only those starting with ""
-        $log_lines = explode("\n", $logs);
-        foreach ($log_lines as $line) {
-            if (strpos($line, '') !== false) { // Check if the line contains ""
-                $filtered_logs .= $line . "\n";
-            }
-        }
+        $filtered_logs = $logs;
     } else {
-        $filtered_logs = 'Error log file not found or not readable.';
+        $filtered_logs = 'No debug activity has been recorded yet. This is normal; logs will appear here when available.';
     }
     
     wp_send_json_success(array(
@@ -354,6 +350,14 @@ function altm_save_debug_mode_ajax_handler() {
     
     // Save the debug mode setting
     update_option('altm_debug_mode', $debug_mode);
+
+    if (!$debug_mode) {
+        $log_file_path = altm_get_log_file_path();
+
+        if (file_exists($log_file_path)) {
+            wp_delete_file($log_file_path);
+        }
+    }
     
     wp_send_json_success(array('message' => 'Debug mode setting saved'));
 }
