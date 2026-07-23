@@ -1,6 +1,8 @@
 jQuery(document).ready(function ($) {
     // Configuration: Get max concurrency from WordPress settings (can be changed in AI Settings page)
-    const MAX_CONCURRENCY = parseInt(altmImageProcessing.maxConcurrency) || 5;
+    const VALID_CONCURRENCY_VALUES = [1, 3, 5, 10];
+    const configuredConcurrency = parseInt(altmImageProcessing.maxConcurrency, 10);
+    const MAX_CONCURRENCY = VALID_CONCURRENCY_VALUES.includes(configuredConcurrency) ? configuredConcurrency : 5;
     const IS_WPML_ACTIVE = !!altmImageProcessing.isWpmlActive;
 
     function formatNumber(num) {
@@ -931,24 +933,113 @@ jQuery(document).ready(function ($) {
         $('#failed-count').text(bulkProcessing.failedCount);
     }
 
+    function getAjaxRequestError(error) {
+        const status = error && Number.isFinite(parseInt(error.status, 10))
+            ? parseInt(error.status, 10)
+            : 0;
+        const responseData = error && error.responseJSON && error.responseJSON.data
+            ? error.responseJSON.data
+            : null;
+        const responseMessage = responseData && typeof responseData.message === 'string'
+            ? responseData.message
+            : '';
+
+        if (status === 504) {
+            return {
+                message: 'Website server timed out (HTTP 504). This batch may have completed on the server, so it was not retried. Continuing with the next images.',
+                shouldContinue: true
+            };
+        }
+
+        if ([500, 502, 503].includes(status)) {
+            return {
+                message: `Website server error (HTTP ${status}). This batch may have completed on the server, so it was not retried. Continuing with the next images.`,
+                shouldContinue: true
+            };
+        }
+
+        if (status === 200) {
+            return {
+                message: 'The website returned an invalid response (HTTP 200). This batch may have completed on the server, so it was not retried. Continuing with the next images.',
+                shouldContinue: true
+            };
+        }
+
+        if (status === 0) {
+            return {
+                message: 'The connection to the website was interrupted. Processing stopped to avoid skipping images.',
+                shouldContinue: false
+            };
+        }
+
+        if (responseMessage) {
+            return {
+                message: `Request failed${status ? ` (HTTP ${status})` : ''}: ${responseMessage}`,
+                shouldContinue: false
+            };
+        }
+
+        if (status) {
+            return {
+                message: `Request failed (HTTP ${status}). Processing stopped to avoid skipping images.`,
+                shouldContinue: false
+            };
+        }
+
+        return {
+            message: 'An unexpected request error occurred. Processing stopped to avoid skipping images.',
+            shouldContinue: false
+        };
+    }
+
     function addFailedImage(imageId, message = '') {
         // Hide the "no failed images" message
         $('#no-failed-images').hide();
 
-        // Get media library edit URL for the image
-        let editUrl = '/wp-admin/upload.php?item=' + imageId;
+        const normalizedImageId = String(imageId);
+        const row = $('<tr>').css('border-bottom', '1px solid #eee');
+        const imageIdCell = $('<td>').css('padding', '6px 8px').text(normalizedImageId);
+        const linkCell = $('<td>').css('padding', '6px 8px');
+        const messageCell = $('<td>')
+            .css({
+                padding: '6px 8px',
+                color: '#c53030',
+                fontSize: '11px'
+            })
+            .text(message || 'Unable to process');
 
-        // Create table row for failed image
-        let row = $('<tr style="border-bottom: 1px solid #eee;">' +
-            '<td style="padding: 6px 8px;">' + imageId + '</td>' +
-            '<td style="padding: 6px 8px;"><a href="' + editUrl + '" target="_blank" style="color: #2271b1; text-decoration: underline;">Image Link</a></td>' +
-            '<td style="padding: 6px 8px; color: #c53030; font-size: 11px;">' + (message || 'Unable to process') + '</td>' +
-            '</tr>');
+        if (/^\d+$/.test(normalizedImageId)) {
+            $('<a>')
+                .attr({
+                    href: '/wp-admin/upload.php?item=' + encodeURIComponent(normalizedImageId),
+                    target: '_blank',
+                    rel: 'noopener noreferrer'
+                })
+                .css({
+                    color: '#2271b1',
+                    textDecoration: 'underline'
+                })
+                .text('Image Link')
+                .appendTo(linkCell);
+        } else {
+            linkCell.text('—');
+        }
+
+        row.append(imageIdCell, linkCell, messageCell);
 
         $('#failed-images-body').append(row);
 
         // Scroll to bottom to show newest failed image
         $('#failed-images-table').parent().scrollTop($('#failed-images-table').parent()[0].scrollHeight);
+    }
+
+    function recordChunkRequestFailure(attachmentIds, message) {
+        attachmentIds.forEach(function (imageId) {
+            bulkProcessing.failedCount++;
+            bulkProcessing.processedCount++;
+            addFailedImage(imageId, message);
+            updateProgress();
+        });
     }
 
     // Process images in batches for real-time progress updates
@@ -959,7 +1050,7 @@ jQuery(document).ready(function ($) {
         }
 
         // Get batch size from WordPress settings
-        const batchSize = parseInt(altmImageProcessing.maxConcurrency) || 3;
+        const batchSize = MAX_CONCURRENCY;
         const totalImages = bulkProcessing.queue.length;
 
 
@@ -1093,12 +1184,17 @@ jQuery(document).ready(function ($) {
                 }
             } catch (error) {
                 // Network error, mark all images in this batch as failed
+                const requestError = getAjaxRequestError(error);
                 batch.forEach(item => {
                     bulkProcessing.failedCount++;
                     bulkProcessing.processedCount++;
-                    addFailedImage(item.id, 'Request failed: ' + error.message);
+                    addFailedImage(item.id, requestError.message);
                     updateProgress();
                 });
+
+                if (!requestError.shouldContinue) {
+                    bulkProcessing.shouldCancel = true;
+                }
             }
 
             // Small delay between batches to show progress
@@ -1131,14 +1227,14 @@ jQuery(document).ready(function ($) {
     }
 
     async function processAllImagesByQuery() {
-        const chunkSize = Math.min(10, Math.max(1, parseInt(altmImageProcessing.maxConcurrency, 10) || 5));
+        const chunkSize = MAX_CONCURRENCY;
 
         while (!bulkProcessing.shouldCancel) {
-            let response;
+            let chunkResponse;
 
             try {
-                response = await $.post(altmImageProcessing.ajaxUrl, {
-                    action: 'altm_generate_alt_text_bulk_query_ajax',
+                chunkResponse = await $.post(altmImageProcessing.ajaxUrl, {
+                    action: 'altm_get_alt_text_bulk_query_chunk_ajax',
                     tab: bulkProcessing.queryTab,
                     search: bulkProcessing.searchTerm,
                     cursor_id: bulkProcessing.cursorId,
@@ -1147,24 +1243,69 @@ jQuery(document).ready(function ($) {
                     lang: getCurrentWpmlLanguage()
                 });
             } catch (error) {
+                const requestError = getAjaxRequestError(error);
                 bulkProcessing.failedCount++;
-                addFailedImage('Batch', 'Request failed: ' + error.message);
+                addFailedImage('Batch', requestError.message);
+                updateProgress();
                 break;
             }
 
-            if (!response.success || !response.data) {
+            if (!chunkResponse.success || !chunkResponse.data) {
                 bulkProcessing.failedCount++;
-                addFailedImage('Batch', (response.data && response.data.message) || 'Unable to process the next image chunk.');
+                addFailedImage('Batch', (chunkResponse.data && chunkResponse.data.message) || 'Unable to find the next image chunk.');
+                updateProgress();
                 break;
             }
 
-            const results = response.data.results || {};
-            const processedIds = Array.isArray(response.data.processed_ids) ? response.data.processed_ids : [];
+            const processedIds = Array.isArray(chunkResponse.data.attachment_ids)
+                ? chunkResponse.data.attachment_ids.map(function (imageId) {
+                    return parseInt(imageId, 10);
+                }).filter(function (imageId) {
+                    return imageId > 0;
+                })
+                : [];
 
             if (processedIds.length === 0) {
                 break;
             }
 
+            const hasMore = !!chunkResponse.data.has_more;
+
+            // Advance before starting the long-running request. If its response
+            // is lost, the next loop can continue without retrying or charging
+            // the same chunk again.
+            bulkProcessing.cursorId = parseInt(chunkResponse.data.next_cursor, 10) || 0;
+
+            let response;
+
+            try {
+                response = await $.post(altmImageProcessing.ajaxUrl, {
+                    action: 'altm_generate_alt_text_batch_ajax',
+                    attachment_ids: processedIds,
+                    nonce: altmImageProcessing.generateAltTextNonce,
+                    lang: getCurrentWpmlLanguage()
+                });
+            } catch (error) {
+                const requestError = getAjaxRequestError(error);
+                recordChunkRequestFailure(processedIds, requestError.message);
+
+                if (!requestError.shouldContinue || !hasMore) {
+                    break;
+                }
+
+                await new Promise(function (resolve) {
+                    setTimeout(resolve, 500);
+                });
+                continue;
+            }
+
+            if (!response.success || !response.data) {
+                const errorMessage = (response.data && response.data.message) || 'The website could not process this image chunk.';
+                recordChunkRequestFailure(processedIds, errorMessage);
+                break;
+            }
+
+            const results = response.data;
             let hasCreditsError = false;
             let hasLocalSiteError = false;
             let localSiteError = null;
@@ -1213,9 +1354,7 @@ jQuery(document).ready(function ($) {
                 break;
             }
 
-            bulkProcessing.cursorId = parseInt(response.data.next_cursor, 10) || 0;
-
-            if (hasCreditsError || !response.data.has_more) {
+            if (hasCreditsError || !hasMore) {
                 break;
             }
 
@@ -1248,7 +1387,32 @@ jQuery(document).ready(function ($) {
             $('#completion-message').hide();
             $('#credits-depleted-message').show();
         } else {
-            // Show normal completion message
+            const hasFailures = bulkProcessing.failedCount > 0;
+            const stoppedEarly = bulkProcessing.processedCount < bulkProcessing.totalItems;
+            const remainingCount = Math.max(0, bulkProcessing.totalItems - bulkProcessing.processedCount);
+
+            $('#completion-message').css({
+                background: hasFailures || stoppedEarly ? '#fff8e5' : '#d1f2eb',
+                borderColor: hasFailures || stoppedEarly ? '#dba617' : '#a7f3d0'
+            });
+            $('#completion-icon').text(hasFailures || stoppedEarly ? '⚠️' : '🎉');
+            $('#completion-title')
+                .css('color', hasFailures || stoppedEarly ? '#7a4d00' : '#0e7c55')
+                .text(
+                    stoppedEarly
+                        ? 'Processing Stopped'
+                        : (hasFailures ? 'Processing Complete with Some Errors' : 'Processing Complete!')
+                );
+            $('#completion-detail')
+                .css('color', hasFailures || stoppedEarly ? '#7a4d00' : '#0e7c55')
+                .text(
+                    stoppedEarly
+                        ? `${bulkProcessing.successCount} images succeeded. ${remainingCount} images were not processed. Review the error list before continuing.`
+                        : (hasFailures
+                        ? `${bulkProcessing.successCount} images succeeded. ${bulkProcessing.failedCount} failed or could not be confirmed. Review the list before retrying.`
+                        : 'All images have been processed successfully')
+                );
+
             $('#completion-message').show();
             $('#credits-depleted-message').hide();
         }

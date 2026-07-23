@@ -331,11 +331,12 @@ function altm_generate_alt_text_batch($attachment_ids) {
     }
 
     // Get batch size limit from settings (max 10 as per API limit)
-    $max_concurrency = get_option('alt_magic_max_concurrency', 5);
-    // Ensure concurrency value is valid (1, 5, or 10)
-    $valid_values = array(1, 5, 10);
-    if (!in_array($max_concurrency, $valid_values)) {
+    $max_concurrency = (int) get_option('alt_magic_max_concurrency', 5);
+    // Ensure concurrency value is valid (1, 3, 5, or 10)
+    $valid_values = array(1, 3, 5, 10);
+    if (!in_array($max_concurrency, $valid_values, true)) {
         if ($max_concurrency <= 1) $max_concurrency = 1;
+        elseif ($max_concurrency <= 3) $max_concurrency = 3;
         elseif ($max_concurrency <= 5) $max_concurrency = 5;
         else $max_concurrency = 10;
     }

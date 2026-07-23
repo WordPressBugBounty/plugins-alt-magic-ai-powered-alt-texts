@@ -3,7 +3,7 @@ Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, image seo, bulk alt text
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.7.10
+Stable tag: 1.8.1
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -189,6 +189,9 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.8.1 =
+* Improved bulk processing reliability and added a new processing speed option.
+
 = 1.7.10 =
 * Security improvements and general maintenance.
 
@@ -337,6 +340,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Bug fixes
 
 == Upgrade Notice ==
+= 1.8.1 =
+* A smoother and more reliable bulk image processing experience.
+
 = 1.7.10 =
 * Security improvements and general maintenance.
 

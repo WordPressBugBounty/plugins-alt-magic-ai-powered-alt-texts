@@ -7,19 +7,20 @@ if (!defined('ABSPATH')) {
 
 /**
  * Helper function to get valid concurrency value
- * Maps old values to new valid options: 1, 5, 10
+ * Maps old values to supported options: 1, 3, 5, 10
  */
 function altm_get_valid_concurrency_value() {
-    $current_value = get_option('alt_magic_max_concurrency', 5);
-    $valid_values = array(1, 5, 10);
+    $current_value = (int) get_option('alt_magic_max_concurrency', 5);
+    $valid_values = array(1, 3, 5, 10);
     
     // If current value is already valid, return it
-    if (in_array($current_value, $valid_values)) {
+    if (in_array($current_value, $valid_values, true)) {
         return $current_value;
     }
     
     // Map old values to closest new values
     if ($current_value <= 1) return 1;
+    if ($current_value <= 3) return 3;
     if ($current_value <= 5) return 5;
     
     return 10; // For values > 5
@@ -332,6 +333,7 @@ function alt_magic_render_ai_settings_page() {
                         <td>
                             <select name="alt_magic_max_concurrency" class="alt-magic-setting">
                                 <option value="1" <?php selected($options['alt_magic_max_concurrency'], 1); ?>>1 - Slow (Low server load)</option>
+                                <option value="3" <?php selected($options['alt_magic_max_concurrency'], 3); ?>>3 - Moderate (Lower server load)</option>
                                 <option value="5" <?php selected($options['alt_magic_max_concurrency'], 5); ?>>5 - Balanced (Recommended)</option>
                                 <option value="10" <?php selected($options['alt_magic_max_concurrency'], 10); ?>>10 - Fast (Increased server load)</option>
                             </select>
@@ -649,7 +651,13 @@ function alt_magic_sanitize_option_value($key, $value) {
             return absint($value) ? 1 : 0;
             
         case 'integer':
-            return absint($value);
+            $integer_value = absint($value);
+
+            if ($key === 'alt_magic_max_concurrency') {
+                return in_array($integer_value, array(1, 3, 5, 10), true) ? $integer_value : 5;
+            }
+
+            return $integer_value;
             
         case 'textarea':
             return sanitize_textarea_field($value);

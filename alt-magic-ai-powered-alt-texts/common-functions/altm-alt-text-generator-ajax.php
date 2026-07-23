@@ -174,6 +174,44 @@ function altm_generate_alt_text_batch_ajax_handler() {
 }
 add_action('wp_ajax_altm_generate_alt_text_batch_ajax', 'altm_generate_alt_text_batch_ajax_handler');
 
+/**
+ * Returns the next attachment IDs for query-based bulk generation without
+ * starting generation. The browser advances this cursor before processing the
+ * chunk so it can safely continue when a long-running generation request loses
+ * its response at the web server or proxy.
+ */
+function altm_get_alt_text_bulk_query_chunk_ajax_handler() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'generate_alt_text_nonce')) {
+        wp_send_json_error(array('message' => 'Invalid nonce.'));
+        return;
+    }
+
+    if (!current_user_can('upload_files')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        return;
+    }
+
+    $tab = isset($_POST['tab']) ? sanitize_key(wp_unslash($_POST['tab'])) : '';
+    $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+    $cursor_id = isset($_POST['cursor_id']) ? absint(wp_unslash($_POST['cursor_id'])) : 0;
+    $chunk_size = isset($_POST['chunk_size']) ? absint(wp_unslash($_POST['chunk_size'])) : 25;
+
+    if (!in_array($tab, array('empty-alt', 'short-alt', 'all-images'), true)) {
+        wp_send_json_error(array('message' => 'Invalid bulk generation tab.'));
+        return;
+    }
+
+    $attachment_ids = altm_get_image_processing_chunk_ids($tab, $search, $chunk_size, $cursor_id);
+    $normalized_chunk_size = min(50, max(1, $chunk_size));
+
+    wp_send_json_success(array(
+        'attachment_ids' => $attachment_ids,
+        'next_cursor' => !empty($attachment_ids) ? min($attachment_ids) : 0,
+        'has_more' => count($attachment_ids) === $normalized_chunk_size,
+    ));
+}
+add_action('wp_ajax_altm_get_alt_text_bulk_query_chunk_ajax', 'altm_get_alt_text_bulk_query_chunk_ajax_handler');
+
 function altm_generate_alt_text_bulk_query_ajax_handler() {
     altm_log('altm_generate_alt_text_bulk_query_ajax_handler called');
 

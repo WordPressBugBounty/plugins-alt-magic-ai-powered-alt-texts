@@ -88,7 +88,7 @@ function altm_render_image_processing_page() {
         'fetchCreditsNonce' => $fetch_credits_nonce,
         'generateAltTextNonce' => $generate_alt_text_nonce,
         'listImagesNonce' => $list_images_nonce,
-        'maxConcurrency' => get_option('alt_magic_max_concurrency', 3),
+        'maxConcurrency' => get_option('alt_magic_max_concurrency', 5),
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
         'userEmail' => get_option('alt_magic_user_id', ''),
@@ -287,11 +287,11 @@ function altm_render_image_processing_page() {
 
             <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                 <div style="background-color: #d1f2eb; padding: 4px 8px; border-radius: 4px; color: #0e7c55;">✓ Successful: <span id="success-count">0</span></div>
-                <div style="background-color: #fdeaea; padding: 4px 8px; border-radius: 4px; color: #c53030;">✗ Failed: <span id="failed-count">0</span></div>
+                <div style="background-color: #fdeaea; padding: 4px 8px; border-radius: 4px; color: #c53030;">✗ Failed/Unconfirmed: <span id="failed-count">0</span></div>
             </div>
 
             <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; margin-bottom: 10px;">Failed Images:</div>
+                <div style="font-weight: bold; margin-bottom: 10px;">Failed or Unconfirmed Images:</div>
                 <div style="height: 120px; overflow-y: auto; border: 1px solid #ddd; background: #f9f9f9;">
                     <table id="failed-images-table" style="width: 100%; font-size: 12px; border-collapse: collapse;">
                         <thead style="background: #e9ecef; position: sticky; top: 0;">
@@ -312,9 +312,9 @@ function altm_render_image_processing_page() {
 
             <!-- Completion Message (Hidden by default) -->
             <div id="completion-message" style="display: none; text-align: center; margin-bottom: 20px; padding: 20px; background: #d1f2eb; border-radius: 4px; border: 1px solid #a7f3d0;">
-                <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
-                <div style="font-size: 20px; font-weight: bold; color: #0e7c55; margin-bottom: 8px;">Processing Complete!</div>
-                <div style="color: #0e7c55; font-size: 14px;">All images have been processed successfully</div>
+                <div id="completion-icon" style="font-size: 48px; margin-bottom: 15px;">🎉</div>
+                <div id="completion-title" style="font-size: 20px; font-weight: bold; color: #0e7c55; margin-bottom: 8px;">Processing Complete!</div>
+                <div id="completion-detail" style="color: #0e7c55; font-size: 14px;">All images have been processed successfully</div>
             </div>
 
             <!-- Credits Depleted Message (Hidden by default) -->

@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 // Render plugin settings page
 function alt_magic_render_settings_page() {
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.10';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.1';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -47,7 +47,7 @@ function alt_magic_render_settings_page() {
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.7.10';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.1';
     $alt_text_language = get_option('alt_magic_language', 'en');
     $rename_language = get_option('alt_magic_rename_language', 'en');
     $onboarding_done = get_option('alt_magic_onboarding_done', 0);
