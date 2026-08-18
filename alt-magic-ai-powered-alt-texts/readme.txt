@@ -2,8 +2,8 @@
 Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, image seo, bulk alt text
 Requires at least: 5.0
-Tested up to: 7.0
-Stable tag: 1.8.1
+Tested up to: 7.1
+Stable tag: 1.8.2
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -147,7 +147,6 @@ For larger workloads, Alt Magic also offers custom plans and pricing for high-vo
 = Does Alt Magic include free monthly credits? =
 Yes. Alt Magic includes 50 free credits every month, which you can use for both alt text generation and AI image renaming. These free credits automatically refresh on the 1st of each month.
 
-
 == Screenshots ==
 1. Manual alt text generation from the media library with optional title, caption, and description updates
 2. AI settings with 150+ language support for generated alt text
@@ -189,6 +188,9 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.8.2 =
+* Added in-plugin pricing and out-of-credit plan prompts, improved support access, and confirmed WordPress 7.1 compatibility.
+
 = 1.8.1 =
 * Improved bulk processing reliability and added a new processing speed option.
 
@@ -271,75 +273,10 @@ For detailed information about data handling, privacy practices, and terms of se
 * Added custom ChatGPT prompt layer for advanced alt text generation control
 * Added language selection for image renaming feature
 
-= 0.4.6 =
-* Minor UI improvements and bug fixes
-* Updated WordPress compatibility to 6.8.3 latest
-
-= 0.4.5 =
-* Added AI-powered image renaming during image upload
-* Added AI-powered image renaming for already uploaded images
-* Added manual image renaming option
-* Upgraded image vision models for better accuracy
-* Added clear log option for better debugging
-* Multiple small bug fixes and performance improvements
-
-= 0.4.4 =
-* Improved ui elements and modal designs
-
-= 0.4.3 =
-* Fixed bug for sites with WordPress installed inside a subfolder
-
-= 0.4.2 =
-* Fixed bug for .local sites 
-
-= 0.4.1 =
-* Fixed bug in bulk alt text generation language handling
-
-= 0.4.0 =
-* Fixed critical bug in bulk alt text generation that was causing errors in some sites
-
-= 0.3.2 =
-* Faster bulk alt text generation with user-configurable speed settings
-* Enhanced bulk processing with selective image selection capabilities
-* Added optimization feature for images with existing alt text
-
-= 0.3.1 =
-* Added a new "Style & Level of Detail" setting, allowing users to choose between "Elaborated," "Standard," and "Concise" alt text generation styles for more granular control over verbosity.
-
-= 0.2.9 =
-* Bug fixes and performance improvements
-* Updated WordPress compatibility to 6.8.1
-
-= 0.2.2 =
-* Initial release with core features including auto-generation of alt texts, bulk generation, and Yoast SEO integration.
-
-= 0.2.3 =
-* Added language support for alt text generation.
-* Added eCommerce optimized alt text generation.
-
-= 0.2.4 =
-* Added support for WordPress 6.7.1
-
-= 0.2.5 =
-* Added integration with Squirrly SEO for keyword-rich alt texts.
-* Added integration with SEO Press for keyword-rich alt texts.
-* Added integration with Rank Math SEO for keyword-rich alt texts.
-* Added integration with AISEO plugin for keyword-rich alt texts.
-
-= 0.2.6 =
-* Bug fixes
-
-= 0.2.7 =
-* Added Processed Images feature to view history of all images processed by Alt Magic
-* Improved alt text column in media library for better visibility and management
-* Fixed issue with quotes in alt text display
-* Enhanced user interface with visual feedback when generating alt text
-
-= 0.2.8 =
-* Added site-wide language selection feature, allowing each site to have its own preferred language for alt text generation
-* Bug fixes
-
 == Upgrade Notice ==
+= 1.8.2 =
+* Get clearer credit guidance, built-in plan options, and faster access to support.
+
 = 1.8.1 =
 * A smoother and more reliable bulk image processing experience.
 
@@ -360,86 +297,3 @@ For detailed information about data handling, privacy practices, and terms of se
 
 = 1.7.5 =
 * Better WPML handling, smoother bulk image tools, and a more polished overall experience.
-
-= 1.7.4 =
-* Better WPML alt text generation and a smoother plugin experience.
-
-= 1.7.3 =
-* WPML is now supported for multi-lingual auto alt text generation
-* WPML is now supported for multi-lingual bulk alt text generation
-
-= 1.7.2 =
-* Updated plugin branding with UX enhancements
-
-= 1.7.1 =
-* Ux enhancement with small bug fixes
-
-= 1.6.3 =
-* Fixed bug for timeout during bulk processing. Process will not stop due to some image failures.  
-
-= 1.6.2 =
-* Added all images tab to alt text generation page, filter on image renaming page, and fixed caption/description not being updated during bulk alt text generation when flags are enabled.
-
-= 1.6.1 =
-* Alt Magic can now auto detect if the site is using firewall and generate alt text for it
-
-= 1.5.3 =
-* Fixed an image renaming bug and added new signup flow. Update recommended for all users.
-
-= 1.5.2 =
-* This version fixes verbosity selection settings bug, adds shift-click multi-selection for bulk operations, and includes various UI improvements. Update recommended for all users.
-
-= 1.5.1 =
-* This version includes important security improvements and image processing speed 
-
-= 1.5.0 =
-* Improved compatibility with more WordPress themes and fixed API key verification issues. Update recommended for all users.
-
-= 1.4.9 =
-* CRITICAL UPDATE: Fixes critical bug for Kadence theme and blocks
-
-= 1.4.8 =
-* CRITICAL UPDATE: Fixes "Cookies were blocked" error that prevented some users from logging into WordPress admin.
-
-= 1.4.7 =
-* This version introduces custom ChatGPT prompt layer for advanced alt text generation control and language selection for image renaming. Update recommended for all users.
-
-= 0.4.6 =
-* Minor UI improvements and bug fixes. Update recommended for all users.
-
-= 0.4.5 =
-* This version introduces AI-powered image renaming features for both new uploads and existing images, upgraded vision models, and improved debugging capabilities. Update recommended for all users.
-
-= 0.4.4 =
-* This version introduces improved user experience elements. Update recommended for all users.
-
-= 0.4.3 =
-* Fixed bug for sites with WordPress installed inside a subfolder. Update recommended for all users.
-
-= 0.4.2 =
-* Fixed bug for .local sites. Update recommended for all users.
-
-= 0.4.1 =
-* This version fixes a bug in bulk alt text generation language handling. Update recommended for all users.
-
-= 0.4.0 =
-* This version fixes a critical bug in bulk alt text generation. If you were experiencing issues with bulk processing, this update is highly recommended.
-
-= 0.3.2 =
-* This version introduces faster bulk processing with configurable speed settings and selective image selection. Users can now choose which images to process and optimize existing alt text for better results.
-
-= 0.3.1 =
-* This version introduces a new "Style & Level of Detail" setting. After upgrading, you can configure this in the AI Settings page to control the verbosity of your generated alt texts.
-
-= 0.2.9 =
-* Bug fixes and performance improvements
-* Updated WordPress compatibility to 6.8.1
-
-= 0.2.8 =
-* Added site-wide language selection feature, allowing each site to have its own preferred language for alt text generation
-* Bug fixes
-
-= 0.2.7 =
-* Added Processed Images feature to view and edit historical processed images
-* Improved media library with alt text column and visual enhancements
-* Fixed various display issues with special characters in alt text

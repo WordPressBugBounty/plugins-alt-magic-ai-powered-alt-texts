@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 // Render plugin settings page
 function alt_magic_render_settings_page() {
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.1';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.2';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -43,11 +43,12 @@ function alt_magic_render_settings_page() {
         'settingsAjaxUrl' => admin_url('admin-ajax.php'),
         'apiBaseUrl' => ALT_MAGIC_API_BASE_URL,
         'userEmail' => $user_email,
+        'plansPageUrl' => altm_get_plans_page_url('credits'),
     ));
 
     $api_key = get_option('alt_magic_api_key');
     $is_verified = !empty($api_key);
-    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.1';
+    $plugin_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.2';
     $alt_text_language = get_option('alt_magic_language', 'en');
     $rename_language = get_option('alt_magic_rename_language', 'en');
     $onboarding_done = get_option('alt_magic_onboarding_done', 0);
@@ -338,7 +339,7 @@ function alt_magic_render_settings_page() {
                                 <h2 class="alt-magic-connected-heading">Credits Available</h2>
                                 <div class="alt-magic-credits-display-large">
                                     <span class="alt-magic-credits-badge-large" id="dashboard-credits-available"></span>
-                                    <a href="https://www.altmagic.pro/pricing" target="_blank" class="alt-magic-buy-credits-link" id="buy-credits-link" style="display: none;">Buy more credits →</a>
+                                    <a href="<?php echo esc_url(altm_get_plans_page_url('credits')); ?>" class="alt-magic-buy-credits-link" id="buy-credits-link" style="display: none;">View plans →</a>
                                 </div>
                                 <p class="alt-magic-credits-renewal-note" id="dashboard-credits-renewal" style="display: none;"></p>
                                 <p class="alt-magic-credits-description">Use credits to generate alt text and rename your images.<br><br>1 credit = 1 image alt text generation<br>1 credit = 1 image name generation</p>

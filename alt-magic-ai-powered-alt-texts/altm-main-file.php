@@ -2,14 +2,14 @@
 /*
 Plugin Name: Alt Magic: AI Image Alt Text Generator for WP & Image Rename
 Plugin URI: https://altmagic.pro/
-Description: Automatically generate SEO-optimized alt texts and rename images using AI. Improve accessibility, rankings, and WooCommerce product image visibility with one powerful plugin.
-Version: 1.8.1
+Description: Generate AI-powered alt text and rename images in WordPress to improve accessibility, image SEO, and WooCommerce product visibility.
+Version: 1.8.2
 Author: Alt Magic
 Author URI: https://altmagic.pro/
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Requires at least: 5.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.0
 */
 
@@ -29,7 +29,7 @@ if (!defined('ALT_MAGIC_API_BASE_URL')) {
 }
 
 // Define plugin version constant
-define('ALT_MAGIC_PLUGIN_VERSION', '1.8.1');
+define('ALT_MAGIC_PLUGIN_VERSION', '1.8.2');
 
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-initialize-all-settings-values.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-supported-languages.php';
@@ -37,6 +37,7 @@ require_once plugin_dir_path( __FILE__ ) . '/common-functions/altm-wpml.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-functions/altm-plugin-activation-flow.php';   
 
 
+require_once plugin_dir_path( __FILE__ ) . '/admin-settings-pages/altm-plans-page.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-settings-pages/altm-admin-menu-generator.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-settings-pages/altm-account-settings-page.php';
 require_once plugin_dir_path( __FILE__ ) . '/admin-settings-pages/altm-ai-settings-page.php';

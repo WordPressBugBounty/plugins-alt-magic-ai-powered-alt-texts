@@ -28,6 +28,15 @@ function altm_add_admin_menu() {
     );
 
     add_submenu_page(
+        'alt-magic',
+        'Plans & Pricing',
+        'Plans & Pricing',
+        'manage_options',
+        'alt-magic-plans',
+        'altm_render_plans_page'
+    );
+
+    add_submenu_page(
         'alt-magic',           // Parent menu slug
         'AI Settings',         // Page title
         'AI Settings',         // Menu title

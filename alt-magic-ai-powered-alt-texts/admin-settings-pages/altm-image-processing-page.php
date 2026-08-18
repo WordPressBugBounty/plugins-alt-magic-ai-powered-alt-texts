@@ -38,32 +38,20 @@ function altm_render_image_processing_page() {
     $ajax_url = wp_parse_url(admin_url('admin-ajax.php'), PHP_URL_PATH);
 
     $script_path = plugin_dir_path(__FILE__) . '../scripts/altm-image-processing-page-script.js';
-    $local_unlock_script_path = plugin_dir_path(__FILE__) . '../scripts/altm-local-site-unlock-modal.js';
     $style_path  = plugin_dir_path(__FILE__) . '../css/altm-image-processing-page.css';
     $use_filemtime_version = defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local';
     $script_version = $use_filemtime_version
         ? filemtime($script_path)
         : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($script_path));
-    $local_unlock_script_version = $use_filemtime_version
-        ? filemtime($local_unlock_script_path)
-        : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($local_unlock_script_path));
     $style_version = $use_filemtime_version
         ? filemtime($style_path)
         : (defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : filemtime($style_path));
-
-    wp_enqueue_script(
-        'altm-local-site-unlock-modal',
-        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-        array('jquery'),
-        $local_unlock_script_version,
-        true
-    );
 
     // Enqueue the JavaScript file
     wp_enqueue_script(
         'altm-image-processing-script',
         plugin_dir_url(__FILE__) . '../scripts/altm-image-processing-page-script.js',
-        array('jquery', 'altm-local-site-unlock-modal'),
+        array('jquery', 'altm-plans'),
         $script_version,
         true
     );
@@ -76,11 +64,7 @@ function altm_render_image_processing_page() {
         $style_version
     );
 
-    // Get user email for purchase link
-    $user_email = get_option('alt_magic_user_id', '');
-    $purchase_url = !empty($user_email)
-        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
-        : 'https://www.altmagic.pro/pricing';
+    $purchase_url = altm_get_plans_page_url('credits');
 
     // Localize script to pass PHP variables to JavaScript
     wp_localize_script('altm-image-processing-script', 'altmImageProcessing', array(
@@ -90,6 +74,7 @@ function altm_render_image_processing_page() {
         'listImagesNonce' => $list_images_nonce,
         'maxConcurrency' => get_option('alt_magic_max_concurrency', 5),
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
+        'plansPageUrl' => $purchase_url,
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
         'userEmail' => get_option('alt_magic_user_id', ''),
         'isWpmlActive' => $is_wpml_active
@@ -103,7 +88,7 @@ function altm_render_image_processing_page() {
         <div class="account-info-container" style="margin: 10px 0; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;">
             <p id="account-info-text" style="font-size: 14px; color: #333; margin: 0;"><?php
             echo wp_kses_post($is_account_active ?
-            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>'
+            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a href="' . esc_url($purchase_url) . '" data-altm-plans-open>View plans.</a>'
             : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
         </div>
 
@@ -321,8 +306,8 @@ function altm_render_image_processing_page() {
             <div id="credits-depleted-message" style="display: none; text-align: center; margin-bottom: 20px; padding: 20px; background: #fdeaea; border-radius: 4px; border: 1px solid #f5c2c7;">
                 <div style="font-size: 32px; margin-bottom: 15px;">⚠️</div>
                 <div style="font-size: 20px; font-weight: bold; color: #b70000; margin-bottom: 8px;">Processing Stopped</div>
-                <div style="color: #b70000; font-size: 14px; margin-bottom: 15px;">You've run out of credits. Purchase more to continue processing.</div>
-                <a href="<?php echo esc_url(!empty(get_option('alt_magic_user_id', '')) ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode(get_option('alt_magic_user_id', '')) : 'https://www.altmagic.pro/pricing'); ?>" target="_blank" class="button button-primary" style="margin-top: 10px;">Purchase Credits</a>
+                <div style="color: #b70000; font-size: 14px; margin-bottom: 15px;">You've run out of credits. Choose a plan to continue processing.</div>
+                <a href="<?php echo esc_url(altm_get_plans_page_url('credits')); ?>" class="button button-primary" style="margin-top: 10px;" data-altm-plans-open>View Plans</a>
             </div>
 
             <div style="text-align: center;">

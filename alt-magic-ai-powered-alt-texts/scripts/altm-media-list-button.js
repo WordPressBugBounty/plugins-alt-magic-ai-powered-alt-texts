@@ -59,17 +59,6 @@ jQuery(document).ready(function ($) {
         $('#altm-auth-error-modal').fadeIn(200);
     }
 
-    function isLocalSiteGenerationBlockedError(error) {
-        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
-            && window.altmIsLocalSiteGenerationBlocked(error);
-    }
-
-    function showLocalSiteGenerationBlockedModal(error) {
-        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
-            window.altmShowLocalSiteUnlockModal(error);
-        }
-    }
-
     // Add CSS for loader and buttons
     $('<style>')
         .prop('type', 'text/css')
@@ -197,8 +186,7 @@ jQuery(document).ready(function ($) {
                 button.prop('disabled', false);
                 spinner.hide();
 
-                if (isLocalSiteGenerationBlockedError(response)) {
-                    showLocalSiteGenerationBlockedModal(response);
+                if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(response)) {
                     button.text('Generate Alt Text');
                     return;
                 }
@@ -262,12 +250,6 @@ jQuery(document).ready(function ($) {
                         button.text('Generate Alt Text');
                     }, 3000);
                 } else {
-                    if (isLocalSiteGenerationBlockedError(response.data || response)) {
-                        showLocalSiteGenerationBlockedModal(response.data || response);
-                        button.text('Generate Alt Text');
-                        return;
-                    }
-
                     // Show error
                     alert('Failed to generate alt text: ' + (response.data ? response.data.message : 'Unknown error'));
                     button.text('Generate Alt Text');
@@ -280,8 +262,7 @@ jQuery(document).ready(function ($) {
                 button.prop('disabled', false);
                 spinner.hide();
 
-                if (isLocalSiteGenerationBlockedError(xhr)) {
-                    showLocalSiteGenerationBlockedModal(xhr);
+                if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(xhr)) {
                     button.text('Generate Alt Text');
                     return;
                 }

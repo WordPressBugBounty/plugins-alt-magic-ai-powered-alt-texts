@@ -17,10 +17,7 @@ function altm_render_processed_images_page() {
     // Check if the site is running on localhost
     $is_localhost = strpos(get_site_url(), 'localhost') !== false;
     
-    // Get user email for purchase link
-    $purchase_url = !empty($user_email) 
-        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
-        : 'https://www.altmagic.pro/pricing';
+    $purchase_url = altm_get_plans_page_url('credits');
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -30,7 +27,7 @@ function altm_render_processed_images_page() {
             <p id="account-info-text" style="font-size: 14px; color: #333; margin: 0;"><?php 
             $is_account_active = get_option('alt_magic_account_active');
             echo wp_kses_post($is_account_active ? 
-            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>' 
+            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a href="' . esc_url($purchase_url) . '">View plans.</a>'
             : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
         </div>
         

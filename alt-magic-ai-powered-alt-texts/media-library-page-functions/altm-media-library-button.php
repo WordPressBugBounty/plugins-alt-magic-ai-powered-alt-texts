@@ -16,19 +16,11 @@ function altm_custom_media_popup_button_script() {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- No nonce verification needed for conditional script loading in admin
         $post_id = isset($_GET['post']) ? absint($_GET['post']) : 0;
         if ($screen->base === 'upload' || ($screen->base === 'post' && $post_id > 0 && get_post_type($post_id) === 'product')) {
-            wp_enqueue_script(
-                'altm-local-site-unlock-modal',
-                plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-                array('jquery'),
-                defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
-                true
-            );
-
             // Enqueue the JavaScript file
             wp_enqueue_script(
                 'alt-magic-media-popup-button',
                 plugin_dir_url(__FILE__) . '../scripts/altm-media-popup-button.js',
-                array('jquery', 'altm-local-site-unlock-modal'),
+                array('jquery', 'altm-plans'),
                 '1.0.0', // Specify the version number here
                 true
             );
@@ -84,19 +76,11 @@ function altm_enqueue_edit_attachment_script($hook) {
             return;
         }
 
-        wp_enqueue_script(
-            'altm-local-site-unlock-modal',
-            plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-            array('jquery'),
-            defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
-            true
-        );
-
         // Enqueue the script
         wp_enqueue_script(
             'alt-magic-edit-attachment-button',
             plugin_dir_url(__FILE__) . '../scripts/altm-edit-attachment-button.js',
-            array('jquery', 'altm-local-site-unlock-modal'),
+            array('jquery', 'altm-plans'),
             '1.0.0',
             true
         );
@@ -239,19 +223,11 @@ function altm_enqueue_media_list_script($hook) {
         return;
     }
 
-    wp_enqueue_script(
-        'altm-local-site-unlock-modal',
-        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-        array('jquery'),
-        defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
-        true
-    );
-
     // Enqueue the script
     wp_enqueue_script(
         'alt-magic-media-list-button',
         plugin_dir_url(__FILE__) . '../scripts/altm-media-list-button.js',
-        array('jquery', 'altm-local-site-unlock-modal'),
+        array('jquery', 'altm-plans'),
         '1.0.0',
         true
     );
@@ -315,19 +291,11 @@ function altm_enqueue_edit_attachment_scripts($hook) {
 function altm_enqueue_post_editor_scripts($hook) {
     // Only on post edit screen
     if ($hook === 'post.php' || $hook === 'post-new.php') {
-        wp_enqueue_script(
-            'altm-local-site-unlock-modal',
-            plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-            array('jquery'),
-            defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.0.0',
-            true
-        );
-
         // Enqueue the script
         wp_enqueue_script(
             'alt-magic-post-editor-button',
             plugin_dir_url(__FILE__) . '../scripts/altm-post-editor-button.js',
-            array('jquery', 'altm-local-site-unlock-modal'),
+            array('jquery', 'altm-plans'),
             '1.0.0',
             true
         );

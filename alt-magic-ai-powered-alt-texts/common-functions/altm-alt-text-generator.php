@@ -14,19 +14,6 @@ require_once(plugin_dir_path(__FILE__) . '../integrations-functions/altm-fetch-a
 require_once(plugin_dir_path(__FILE__) . '../admin-functions/altm-supported-languages.php');
 require_once(plugin_dir_path(__FILE__) . 'altm-seo-keywords-fetcher.php');
 
-function altm_is_local_site_generation_blocked_message($message) {
-    if (!is_string($message) || $message === '') {
-        return false;
-    }
-
-    $normalized_message = strtolower($message);
-
-    return strpos($normalized_message, 'local development site') !== false
-        || strpos($normalized_message, 'publicly accessible site url') !== false
-        || strpos($normalized_message, 'publicly accessible site') !== false;
-}
-
-
 // Single alt text generation
 
 //Generates alt text for a given attachment ID.
@@ -195,9 +182,7 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
         altm_log("Alt Magic API returned 403 Forbidden: " . $error_message);
 
         // Check if it's a credits error or authentication error
-        if (altm_is_local_site_generation_blocked_message($error_message)) {
-            return [false, 'local_site_blocked', $error_message, 403];
-        } else if (isset($response_data['message']) && $response_data['message'] == 'No credits remaining.') {
+        if (isset($response_data['message']) && $response_data['message'] == 'No credits remaining.') {
             return [false, 'no_credits', $error_message];
         } else {
             // Authentication or other 403 errors - pass through the message
@@ -459,23 +444,9 @@ function altm_generate_alt_text_batch($attachment_ids) {
             $is_credits_error = false;
             $include_credits_in_result = true;
             $stop_processing = false;
-            $error_code = '';
-
-            $api_error_text = '';
-            if (isset($response_data['message']) && is_string($response_data['message'])) {
-                $api_error_text = $response_data['message'];
-            } elseif (isset($response_data['error']) && is_string($response_data['error'])) {
-                $api_error_text = $response_data['error'];
-            }
 
             // Handle 502/503/504 (server/timeout errors) — do NOT treat as out of credits
-            if (altm_is_local_site_generation_blocked_message($api_error_text)) {
-                $error_message = $api_error_text;
-                $error_code = 'local_site_blocked';
-                $include_credits_in_result = false;
-                $stop_processing = true;
-                altm_log('Batch ' . ($batch_index + 1) . ' stopped because local site generation is blocked');
-            } elseif (in_array($response_code, array(502, 503, 504), true)) {
+            if (in_array($response_code, array(502, 503, 504), true)) {
                 $error_message = __('Generation timeout. Please try this image again.', 'alt-magic');
                 $include_credits_in_result = false;
                 altm_log('Batch ' . ($batch_index + 1) . ' received ' . $response_code . ' (server/timeout error), continuing with next batch');
@@ -559,9 +530,6 @@ function altm_generate_alt_text_batch($attachment_ids) {
                     'success' => false,
                     'message' => $error_message
                 );
-                if ($error_code !== '') {
-                    $result_entry['error_code'] = $error_code;
-                }
                 if ($include_credits_in_result && isset($response_data['credits_available'])) {
                     $result_entry['credits_available'] = $response_data['credits_available'];
                 }

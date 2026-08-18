@@ -59,17 +59,6 @@ jQuery(document).ready(function ($) {
         $('#altm-auth-error-modal').fadeIn(200);
     }
 
-    function isLocalSiteGenerationBlockedError(error) {
-        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
-            && window.altmIsLocalSiteGenerationBlocked(error);
-    }
-
-    function showLocalSiteGenerationBlockedModal(error) {
-        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
-            window.altmShowLocalSiteUnlockModal(error);
-        }
-    }
-
     function parseJsonFromResponseText(responseText) {
         if (!responseText) {
             return null;
@@ -345,8 +334,7 @@ jQuery(document).ready(function ($) {
                                 .text('Generate Alt Text')
                                 .css('opacity', '1');
 
-                            if (isLocalSiteGenerationBlockedError(response)) {
-                                showLocalSiteGenerationBlockedModal(response);
+                            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(response)) {
                                 return;
                             }
 
@@ -361,11 +349,6 @@ jQuery(document).ready(function ($) {
                                 var moreOptions = response.data.more_options;
                                 applyMediaPopupAltText(altText, moreOptions, altTextElement, $message);
                             } else {
-                                if (isLocalSiteGenerationBlockedError(response.data || response)) {
-                                    showLocalSiteGenerationBlockedModal(response.data || response);
-                                    return;
-                                }
-
                                 console.error('Error:', response.data || 'Unknown error');
                                 alert('Failed to generate alt text. Please try again or contact chat support on app.altmagic.pro');
                             }
@@ -384,8 +367,7 @@ jQuery(document).ready(function ($) {
                             if (textStatus === 'parsererror') {
                                 var parsedResponse = parseJsonFromResponseText(jqXHR.responseText);
 
-                                if (isLocalSiteGenerationBlockedError(parsedResponse)) {
-                                    showLocalSiteGenerationBlockedModal(parsedResponse);
+                                if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(parsedResponse)) {
                                     return;
                                 }
 
@@ -405,8 +387,7 @@ jQuery(document).ready(function ($) {
                                 return;
                             }
 
-                            if (isLocalSiteGenerationBlockedError(jqXHR)) {
-                                showLocalSiteGenerationBlockedModal(jqXHR);
+                            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(jqXHR)) {
                                 return;
                             }
 
@@ -533,8 +514,7 @@ jQuery(document).ready(function ($) {
                         btn.prop('disabled', false).text('Generate Alt Text');
                         spnr.hide();
 
-                        if (isLocalSiteGenerationBlockedError(response)) {
-                            showLocalSiteGenerationBlockedModal(response);
+                        if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(response)) {
                             return;
                         }
 
@@ -568,11 +548,6 @@ jQuery(document).ready(function ($) {
                                 msg.fadeOut();
                             }, 3000);
                         } else {
-                            if (isLocalSiteGenerationBlockedError(response.data || response)) {
-                                showLocalSiteGenerationBlockedModal(response.data || response);
-                                return;
-                            }
-
                             console.error('Alt Magic: Failed to generate alt text', response);
                             alert('Failed to generate alt text: ' + (response.data ? response.data.message : 'Unknown error'));
                         }
@@ -584,8 +559,7 @@ jQuery(document).ready(function ($) {
                         btn.prop('disabled', false).text('Generate Alt Text');
                         spnr.hide();
 
-                        if (isLocalSiteGenerationBlockedError(xhr)) {
-                            showLocalSiteGenerationBlockedModal(xhr);
+                        if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(xhr)) {
                             return;
                         }
 

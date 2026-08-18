@@ -168,7 +168,7 @@ jQuery(document).ready(function ($) {
 
             // Check if we have credits before starting
             if (currentCredits !== null && currentCredits <= 0) {
-                showNoCreditsModal('You don\'t have enough credits to rename images. Please purchase more credits to continue.');
+                showNoCreditsModal('You don\'t have enough credits to rename images. Choose a plan to continue.');
                 return;
             }
 
@@ -391,17 +391,18 @@ jQuery(document).ready(function ($) {
 
     // No credits modal functions
     function showNoCreditsModal(customMessage) {
+        if (typeof window.altmOpenPlansModal === 'function') {
+            window.altmOpenPlansModal(customMessage, 'credits');
+            return;
+        }
+
         // Remove any existing modal first
         $('#altm-no-credits-modal').remove();
 
-        // Get user email from WordPress localized data or fallback
-        const userEmail = altmImageRenaming.userEmail || '';
-        const purchaseUrl = userEmail
-            ? `https://www.altmagic.pro/pricing?wp_email=${encodeURIComponent(userEmail)}`
-            : 'https://www.altmagic.pro/pricing';
+        const purchaseUrl = altmImageRenaming.plansPageUrl || '/wp-admin/admin.php?page=alt-magic-plans';
 
         // Default message if none provided
-        const message = customMessage || 'You don\'t have enough credits. Please purchase more credits to continue.';
+        const message = customMessage || 'You don\'t have enough credits. Choose a plan to continue.';
 
         const modalHtml = `
             <div id="altm-no-credits-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001;">
@@ -417,7 +418,7 @@ jQuery(document).ready(function ($) {
                     
                     <div style="text-align: end;">
                         <button id="dismiss-no-credits" class="button" style="margin-right: 10px;">Dismiss</button>
-                        <a href="${purchaseUrl}" target="_blank" class="button button-primary">Purchase Credits</a>
+                        <a href="${purchaseUrl}" class="button button-primary" data-altm-plans-open>View Plans</a>
                     </div>
                 </div>
             </div>
@@ -869,6 +870,11 @@ jQuery(document).ready(function ($) {
 
             const data = await response.json();
 
+            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(data)) {
+                $button.text(originalText).prop('disabled', false);
+                return;
+            }
+
             // Check for authentication errors first
             if (data.success === false && data.status_code === 403) {
                 $button.text(originalText).prop('disabled', false);
@@ -1219,7 +1225,7 @@ jQuery(document).ready(function ($) {
     function startBulkRename(imageIds, tabType) {
         // Check if we have credits before starting
         if (currentCredits !== null && currentCredits <= 0) {
-            showNoCreditsModal('You don\'t have enough credits to start bulk renaming. Please purchase more credits to continue.');
+            showNoCreditsModal('You don\'t have enough credits to start bulk renaming. Choose a plan to continue.');
             return;
         }
 
@@ -1370,6 +1376,12 @@ jQuery(document).ready(function ($) {
             });
 
             const data = await response.json();
+
+            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(data)) {
+                bulkProcessing.cancelled = true;
+                bulkProcessing.active = false;
+                return;
+            }
 
             // Check for authentication errors
             if (data.success === false && data.status_code === 403) {

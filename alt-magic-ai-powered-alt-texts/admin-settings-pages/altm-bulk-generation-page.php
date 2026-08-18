@@ -23,29 +23,17 @@ function alt_magic_render_bulk_generation_page() {
         '2.1.0'  // Version number - updated to force cache refresh
     );
 
-    wp_enqueue_script(
-        'altm-local-site-unlock-modal',
-        plugin_dir_url(__FILE__) . '../scripts/altm-local-site-unlock-modal.js',
-        array('jquery'),
-        defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '2.1.0',
-        true
-    );
-
     // Register and enqueue the JavaScript file
     wp_register_script(
         'alt-magic-bulk-generation-js',
         esc_url(plugin_dir_url(__FILE__) . '../scripts/altm-bulk-generation-page-script.js'),
-        array('jquery', 'altm-local-site-unlock-modal'), // Dependencies
+        array('jquery'), // Dependencies
         '2.1.0', // Version number - updated to force cache refresh
         true // Load in footer
     );
     wp_enqueue_script('alt-magic-bulk-generation-js');
 
-    // Get user email for purchase link
-    $user_email = get_option('alt_magic_user_id', '');
-    $purchase_url = !empty($user_email)
-        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
-        : 'https://www.altmagic.pro/pricing';
+    $purchase_url = altm_get_plans_page_url('credits');
 
     // Pass data to the JavaScript file
     wp_localize_script('alt-magic-bulk-generation-js', 'altMagicBulkGeneration', array(
@@ -133,7 +121,7 @@ function alt_magic_render_bulk_generation_page() {
                 <div class="account-info-container">
                     <p id="account-info-text" style="font-size: 14px; color: #333;"><?php
                     echo wp_kses_post($is_account_active ?
-                    'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>'
+                    'You have <span class="credits-available-text">... credits</span> remaining in your account. <a href="' . esc_url($purchase_url) . '" data-altm-plans-open>View plans.</a>'
                     : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
                 </div>
 

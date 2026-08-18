@@ -20,7 +20,7 @@ function altm_render_image_renaming_page() {
     $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
     $wpml_current_language = altm_get_wpml_current_language_data();
     $wpml_display_message = '';
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.1';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.2';
 
     if ($is_wpml_active) {
         if ($wpml_bulk_image_scope === 'all_images') {
@@ -38,16 +38,12 @@ function altm_render_image_renaming_page() {
     $ajax_url = admin_url('admin-ajax.php');
     
     // Enqueue the JavaScript file
-    wp_enqueue_script('altm-image-renaming-script', plugin_dir_url(__FILE__) . '../scripts/altm-image-renaming-page-script.js', array('jquery'), $asset_version, true);
+    wp_enqueue_script('altm-image-renaming-script', plugin_dir_url(__FILE__) . '../scripts/altm-image-renaming-page-script.js', array('jquery', 'altm-plans'), $asset_version, true);
     
     // Enqueue the CSS file (reuse the image processing CSS)
     wp_enqueue_style('altm-image-renaming-style', plugin_dir_url(__FILE__) . '../css/altm-image-processing-page.css', array(), $asset_version);
     
-    // Get user email for purchase link
-    $user_email = get_option('alt_magic_user_id', '');
-    $purchase_url = !empty($user_email) 
-        ? 'https://www.altmagic.pro/pricing?wp_email=' . urlencode($user_email)
-        : 'https://www.altmagic.pro/pricing';
+    $purchase_url = altm_get_plans_page_url('credits');
     
     // Localize script to pass PHP variables to JavaScript
     wp_localize_script('altm-image-renaming-script', 'altmImageRenaming', array(
@@ -56,6 +52,7 @@ function altm_render_image_renaming_page() {
         'renameImageNonce' => $rename_image_nonce,
         'saveSettingsNonce' => $save_settings_nonce,
         'accountSettingsUrl' => admin_url('admin.php?page=alt-magic'),
+        'plansPageUrl' => $purchase_url,
         'hasApiKey' => !empty(get_option('alt_magic_api_key')),
         'userEmail' => get_option('alt_magic_user_id', ''),
         'isWpmlActive' => $is_wpml_active
@@ -69,7 +66,7 @@ function altm_render_image_renaming_page() {
         <div class="account-info-container" style="margin: 10px 0; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;">
             <p id="account-info-text" style="font-size: 14px; color: #333; margin: 0;"><?php 
             echo wp_kses_post($is_account_active ? 
-            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a target="_blank" href="' . esc_url($purchase_url) . '">Purchase credits in bulk.</a>' 
+            'You have <span class="credits-available-text">... credits</span> remaining in your account. <a href="' . esc_url($purchase_url) . '" data-altm-plans-open>View plans.</a>'
             : 'Account is not activated. Please go to <a href="' . esc_url(admin_url('admin.php?page=alt-magic')) . '">Account Settings</a> to activate your account.'); ?></p>
         </div>
 

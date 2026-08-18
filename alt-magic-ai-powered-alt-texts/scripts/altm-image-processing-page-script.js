@@ -72,17 +72,6 @@ jQuery(document).ready(function ($) {
         updateVisibleAltTextRows(imageId, altText);
     }
 
-    function isLocalSiteGenerationBlockedError(error) {
-        return typeof window.altmIsLocalSiteGenerationBlocked === 'function'
-            && window.altmIsLocalSiteGenerationBlocked(error);
-    }
-
-    function showLocalSiteGenerationBlockedModal(error) {
-        if (typeof window.altmShowLocalSiteUnlockModal === 'function') {
-            window.altmShowLocalSiteUnlockModal(error);
-        }
-    }
-
     function getLanguageBadgeTheme(languageCode) {
         const normalizedCode = (languageCode || '').toLowerCase();
         const baseCode = normalizedCode.split('-')[0];
@@ -1078,8 +1067,6 @@ jQuery(document).ready(function ($) {
                 if (response.success && response.data) {
                     // Process each result from the batch
                     let hasCreditsError = false;
-                    let hasLocalSiteError = false;
-                    let localSiteError = null;
 
                     Object.keys(response.data).forEach(attachmentId => {
                         const result = response.data[attachmentId];
@@ -1101,15 +1088,10 @@ jQuery(document).ready(function ($) {
 
                             // Check if failure is due to insufficient credits (not server errors like 503/timeout)
                             const errorMessage = result.message || 'Unable to process';
-                            const isLocalSiteError = isLocalSiteGenerationBlockedError(result);
                             const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
                                 errorMessage.toLowerCase().includes('insufficient') ||
                                 (typeof result.credits_available === 'number' && result.credits_available <= 0);
-                            if (isLocalSiteError) {
-                                bulkProcessing.shouldCancel = true;
-                                hasLocalSiteError = true;
-                                localSiteError = result;
-                            } else if (isCreditsError) {
+                            if (isCreditsError) {
                                 bulkProcessing.stoppedDueToCredits = true;
                                 bulkProcessing.shouldCancel = true;
                                 hasCreditsError = true;
@@ -1121,11 +1103,6 @@ jQuery(document).ready(function ($) {
                         bulkProcessing.processedCount++;
                         updateProgress();
                     });
-
-                    if (hasLocalSiteError) {
-                        showLocalSiteGenerationBlockedModal(localSiteError);
-                        break;
-                    }
 
                     // Break the loop if any image failed due to credits
                     if (hasCreditsError) {
@@ -1145,12 +1122,6 @@ jQuery(document).ready(function ($) {
                             errorMessage = response.data.error;
                         } else if (response.data.message) {
                             errorMessage = response.data.message;
-                        }
-
-                        if (isLocalSiteGenerationBlockedError(response.data)) {
-                            bulkProcessing.shouldCancel = true;
-                            shouldStopProcessing = true;
-                            showLocalSiteGenerationBlockedModal(response.data);
                         }
 
                         // Detect credit-related errors only (not server/timeout errors like 503)
@@ -1307,8 +1278,6 @@ jQuery(document).ready(function ($) {
 
             const results = response.data;
             let hasCreditsError = false;
-            let hasLocalSiteError = false;
-            let localSiteError = null;
 
             processedIds.forEach(function (imageId) {
                 const result = results[imageId] || results[String(imageId)] || {};
@@ -1327,16 +1296,11 @@ jQuery(document).ready(function ($) {
                     bulkProcessing.failedCount++;
 
                     const errorMessage = result.message || 'Unable to process';
-                    const isLocalSiteError = isLocalSiteGenerationBlockedError(result);
                     const isCreditsError = errorMessage.toLowerCase().includes('credit') ||
                         errorMessage.toLowerCase().includes('insufficient') ||
                         (typeof result.credits_available === 'number' && result.credits_available <= 0);
 
-                    if (isLocalSiteError) {
-                        bulkProcessing.shouldCancel = true;
-                        hasLocalSiteError = true;
-                        localSiteError = result;
-                    } else if (isCreditsError) {
+                    if (isCreditsError) {
                         bulkProcessing.stoppedDueToCredits = true;
                         bulkProcessing.shouldCancel = true;
                         hasCreditsError = true;
@@ -1348,11 +1312,6 @@ jQuery(document).ready(function ($) {
                 bulkProcessing.processedCount++;
                 updateProgress();
             });
-
-            if (hasLocalSiteError) {
-                showLocalSiteGenerationBlockedModal(localSiteError);
-                break;
-            }
 
             if (hasCreditsError || !hasMore) {
                 break;
@@ -1386,6 +1345,7 @@ jQuery(document).ready(function ($) {
             // Show credits depleted message
             $('#completion-message').hide();
             $('#credits-depleted-message').show();
+            showNoCreditsModal('Your credits ran out before every image could be processed. Choose a plan to continue.');
         } else {
             const hasFailures = bulkProcessing.failedCount > 0;
             const stoppedEarly = bulkProcessing.processedCount < bulkProcessing.totalItems;
@@ -1438,7 +1398,7 @@ jQuery(document).ready(function ($) {
 
         // Check if we have credits before starting
         if (currentCredits !== null && currentCredits <= 0) {
-            showNoCreditsModal('You don\'t have enough credits to start bulk processing. Please purchase more credits to continue.');
+            showNoCreditsModal('You don\'t have enough credits to start bulk processing. Choose a plan to continue.');
             return;
         }
 
@@ -1472,7 +1432,7 @@ jQuery(document).ready(function ($) {
         }
 
         if (currentCredits !== null && currentCredits <= 0) {
-            showNoCreditsModal('You don\'t have enough credits to start bulk processing. Please purchase more credits to continue.');
+            showNoCreditsModal('You don\'t have enough credits to start bulk processing. Choose a plan to continue.');
             return;
         }
 
@@ -1557,17 +1517,18 @@ jQuery(document).ready(function ($) {
 
     // No credits modal functions
     function showNoCreditsModal(customMessage) {
+        if (typeof window.altmOpenPlansModal === 'function') {
+            window.altmOpenPlansModal(customMessage, 'credits');
+            return;
+        }
+
         // Remove any existing modal first
         $('#altm-no-credits-modal').remove();
 
-        // Get user email from WordPress localized data or fallback
-        const userEmail = altmImageProcessing.userEmail || '';
-        const purchaseUrl = userEmail
-            ? `https://www.altmagic.pro/pricing?wp_email=${encodeURIComponent(userEmail)}`
-            : 'https://www.altmagic.pro/pricing';
+        const purchaseUrl = altmImageProcessing.plansPageUrl || '/wp-admin/admin.php?page=alt-magic-plans';
 
         // Default message if none provided
-        const message = customMessage || 'You don\'t have enough credits. Please purchase more credits to continue.';
+        const message = customMessage || 'You don\'t have enough credits. Choose a plan to continue.';
 
         const modalHtml = `
             <div id="altm-no-credits-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001;">
@@ -1583,7 +1544,7 @@ jQuery(document).ready(function ($) {
 
                     <div style="text-align: end;">
                         <button id="dismiss-no-credits" class="button" style="margin-right: 10px;">Dismiss</button>
-                        <a href="${purchaseUrl}" target="_blank" class="button button-primary">Purchase Credits</a>
+                        <a href="${purchaseUrl}" class="button button-primary" data-altm-plans-open>View Plans</a>
                     </div>
                 </div>
             </div>
@@ -1638,7 +1599,7 @@ jQuery(document).ready(function ($) {
 
         // Check if we have credits before starting
         if (currentCredits !== null && currentCredits <= 0) {
-            showNoCreditsModal('You don\'t have enough credits to generate alt text. Please purchase more credits to continue.');
+            showNoCreditsModal('You don\'t have enough credits to generate alt text. Choose a plan to continue.');
             return;
         }
 
@@ -1653,9 +1614,8 @@ jQuery(document).ready(function ($) {
         }, function (response) {
             //console.log('Response received:', response);
 
-            if (isLocalSiteGenerationBlockedError(response)) {
+            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(response)) {
                 button.text('Generate alt text').prop('disabled', false);
-                showLocalSiteGenerationBlockedModal(response);
                 return;
             }
 
@@ -1705,8 +1665,7 @@ jQuery(document).ready(function ($) {
             console.log('AJAX fail:', xhr, status, error);
             button.text('Generate alt text').prop('disabled', false);
 
-            if (isLocalSiteGenerationBlockedError(xhr)) {
-                showLocalSiteGenerationBlockedModal(xhr);
+            if (typeof window.altmHandleCreditsError === 'function' && window.altmHandleCreditsError(xhr)) {
                 return;
             }
 

@@ -383,11 +383,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 var buyCreditsLink = document.getElementById('buy-credits-link');
                 if (buyCreditsLink) {
                     buyCreditsLink.style.display = 'inline';
-                    // Update buy credits link with email parameter
-                    var email = userDetails.email || altMagicSettings.userEmail;
-                    buyCreditsLink.href = email
-                        ? 'https://www.altmagic.pro/pricing?wp_email=' + encodeURIComponent(email)
-                        : 'https://www.altmagic.pro/pricing';
+                    // Keep plan selection inside WordPress; checkout links on that page
+                    // prefill the connected Alt Magic account email.
+                    buyCreditsLink.href = altMagicSettings.plansPageUrl || '/wp-admin/admin.php?page=alt-magic-plans';
                     // Add prominent style when credits are below 24
                     buyCreditsLink.classList.remove('alt-magic-buy-credits-link-urgent');
                     if (credits < 24) {
