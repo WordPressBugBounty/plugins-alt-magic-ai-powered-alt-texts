@@ -20,7 +20,7 @@ function altm_render_image_renaming_page() {
     $wpml_bulk_image_scope = altm_get_wpml_bulk_image_scope();
     $wpml_current_language = altm_get_wpml_current_language_data();
     $wpml_display_message = '';
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.2';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.3';
 
     if ($is_wpml_active) {
         if ($wpml_bulk_image_scope === 'all_images') {
@@ -86,6 +86,12 @@ function altm_render_image_renaming_page() {
                 </div>
             </div>
             <?php else : ?>
+            <div id="bad-names-count-notice" class="notice notice-warning inline" role="status" aria-live="polite" style="display: none; margin: 0 0 15px;">
+                <p style="margin: 8px 0;">
+                    <strong><?php echo esc_html__('Exact count unavailable.', 'alt-magic'); ?></strong>
+                    <span class="altm-count-notice-message"></span>
+                </p>
+            </div>
             <div style="margin-bottom: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div>

@@ -647,17 +647,19 @@ function altm_get_bad_name_keywords() {
 function altm_generate_bad_name_regex($keywords) {
     $prefix_keywords = array('IMG_', 'DSC_', 'DSCN', 'DSCF', 'PIC_', 'PICT', 'CAM_', 'PHOTO_', 'PAT_', 'ai_generated_', 'generated_');
     $token_keywords = array_values(array_diff($keywords, $prefix_keywords));
-    $regex_conditions = array();
+    $basename_expression = "LOWER(SUBSTRING_INDEX(pm_file.meta_value, '/', -1))";
+    $prefix_conditions = array();
+    $token_conditions = array();
 
     $prefix_groups = array_chunk($prefix_keywords, 20);
     foreach ($prefix_groups as $group) {
         $escaped_keywords = array();
         foreach ($group as $keyword) {
-            $escaped_keywords[] = preg_quote($keyword, '/');
+            $escaped_keywords[] = preg_quote(strtolower($keyword), '/');
         }
 
         $keywords_pattern = implode('|', $escaped_keywords);
-        $regex_conditions[] = "pm_file.meta_value REGEXP '(?i)(^|/)(" . $keywords_pattern . ")[^/]*\\.[A-Za-z0-9]+$'";
+        $prefix_conditions[] = $basename_expression . " REGEXP '^(" . $keywords_pattern . ")[^/]*\\.[A-Za-z0-9]+$'";
     }
 
     // Split keywords into smaller groups to avoid MySQL regex limits.
@@ -667,17 +669,25 @@ function altm_generate_bad_name_regex($keywords) {
         // Escape special regex characters and join with OR
         $escaped_keywords = array();
         foreach ($group as $keyword) {
-            $escaped = preg_quote($keyword, '/');
+            $escaped = preg_quote(strtolower($keyword), '/');
             $escaped_keywords[] = $escaped;
         }
         
         $keywords_pattern = implode('|', $escaped_keywords);
         
-        // Match generic keywords as filename tokens, not substrings inside real words.
-        $regex_conditions[] = "pm_file.meta_value REGEXP '(?i)(^|/)([^/]*[^[:alnum:]])?(" . $keywords_pattern . ")([^[:alnum:]][^/]*\\.[A-Za-z0-9]+|\\.[A-Za-z0-9]+)$'";
+        // Match tokens against the basename only. This avoids repeatedly scanning and
+        // backtracking across the upload path while retaining alphanumeric boundaries.
+        $token_conditions[] = $basename_expression . " REGEXP '(^|[^[:alnum:]])(" . $keywords_pattern . ")([^[:alnum:]]|$)'";
     }
-    
-    // Join all conditions with OR
+
+    $regex_conditions = $prefix_conditions;
+
+    if (!empty($token_conditions)) {
+        // Image attachment filenames are expected to include an extension. Keep that
+        // guard as a cheap string check instead of adding another regular expression.
+        $regex_conditions[] = '(' . $basename_expression . " LIKE '%.%' AND (" . implode(' OR ', $token_conditions) . '))';
+    }
+
     return implode(' OR ', $regex_conditions);
 }
 
@@ -847,35 +857,75 @@ function altm_get_image_renaming_query_args($tab, $search = '', $type_filter = '
 function altm_get_image_renaming_total_count($tab, $search = '', $type_filter = '') {
     global $wpdb;
 
-    $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter);
-    if ($query_args === false) {
-        return 0;
+    if ($tab === 'bad-names') {
+        $exists_wheres = array(
+            'pm_file.post_id = p.ID',
+            'pm_file.meta_key = %s',
+            '(' . altm_get_bad_name_regex_clause() . ')',
+        );
+        $params = array('attachment', 'image/%', '_wp_attached_file');
+
+        $search = trim((string) $search);
+        if ($search !== '') {
+            $exists_wheres[] = '(CAST(p.ID AS CHAR) LIKE %s OR p.post_title LIKE %s OR pm_file.meta_value LIKE %s)';
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $exists_sql = implode(' AND ', $exists_wheres);
+        $count_query = "
+            SELECT COUNT(*)
+            FROM {$wpdb->posts} p
+            WHERE p.post_type = %s
+              AND p.post_mime_type LIKE %s
+              AND EXISTS (
+                  SELECT 1
+                  FROM {$wpdb->postmeta} pm_file
+                  WHERE {$exists_sql}
+              )
+        ";
+    } else {
+        $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter);
+        if ($query_args === false) {
+            return 0;
+        }
+
+        $joins = implode(' ', $query_args['joins']);
+        $where_sql = implode(' AND ', $query_args['wheres']);
+        $count_query = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$joins} WHERE {$where_sql}";
+        $params = $query_args['params'];
     }
 
-    $joins = implode(' ', $query_args['joins']);
-    $where_sql = implode(' AND ', $query_args['wheres']);
-    $count_query = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$joins} WHERE {$where_sql}";
-
-    if (!empty($query_args['params'])) {
-        $count_query = $wpdb->prepare($count_query, $query_args['params']);
+    if (!empty($params)) {
+        $count_query = $wpdb->prepare($count_query, $params);
     }
 
-    return (int) $wpdb->get_var($count_query);
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
+    $total = $wpdb->get_var($count_query);
+    $database_error = $wpdb->last_error;
+    $wpdb->suppress_errors($previous_suppress_errors);
+
+    if ($database_error !== '') {
+        $is_timeout = stripos($database_error, 'timeout') !== false || stripos($database_error, 'time limit') !== false;
+        $error_code = $is_timeout ? 'image_count_timeout' : 'image_count_failed';
+        $error_message = $is_timeout
+            ? __('Unable to count the exact number because the server timed out while counting images. The images displayed below are still correct.', 'alt-magic')
+            : __('Unable to count the exact number because the server could not complete the image count. The images displayed below are still correct.', 'alt-magic');
+
+        return new WP_Error($error_code, $error_message);
+    }
+
+    return (int) $total;
 }
 
-function altm_get_image_renaming_page_response($tab, $page, $per_page, $search = '', $type_filter = '') {
+function altm_get_image_renaming_rows_response($tab, $page, $per_page, $search = '', $type_filter = '', $infer_has_more = false) {
     global $wpdb;
 
     $query_args = altm_get_image_renaming_query_args($tab, $search, $type_filter);
     if ($query_args === false) {
         return new WP_Error('invalid_tab', __('Invalid image renaming tab.', 'alt-magic'));
-    }
-
-    $total = altm_get_image_renaming_total_count($tab, $search, $type_filter);
-    $total_pages = $total > 0 ? (int) ceil($total / max(1, $per_page)) : 0;
-
-    if ($total_pages > 0 && $page > $total_pages) {
-        $page = $total_pages;
     }
 
     if ($page < 1) {
@@ -900,15 +950,49 @@ function altm_get_image_renaming_page_response($tab, $page, $per_page, $search =
     $row_params[] = $per_page;
     $row_params[] = $offset;
     $row_query = $wpdb->prepare($row_query, $row_params);
+
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
     $rows = $wpdb->get_results($row_query);
+    $database_error = $wpdb->last_error;
+    $wpdb->suppress_errors($previous_suppress_errors);
+
+    if ($database_error !== '') {
+        return new WP_Error('image_rows_failed', __('Unable to load images. Please try again.', 'alt-magic'));
+    }
+
+    // A full page may have another page. Avoid requesting one extra match because
+    // proving that it exists can force an expensive scan near the end of a library.
+    $has_more = $infer_has_more && count($rows) === $per_page;
 
     return array(
         'images' => altm_build_renaming_image_rows($rows),
-        'total' => $total,
-        'pages' => $total_pages,
         'current_page' => $page,
         'page_size' => $per_page,
+        'has_more' => $has_more,
     );
+}
+
+function altm_get_image_renaming_page_response($tab, $page, $per_page, $search = '', $type_filter = '') {
+    $total = altm_get_image_renaming_total_count($tab, $search, $type_filter);
+    if (is_wp_error($total)) {
+        return $total;
+    }
+
+    $total_pages = $total > 0 ? (int) ceil($total / max(1, $per_page)) : 0;
+
+    if ($total_pages > 0 && $page > $total_pages) {
+        $page = $total_pages;
+    }
+
+    $response = altm_get_image_renaming_rows_response($tab, $page, $per_page, $search, $type_filter);
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $response['total'] = $total;
+    $response['pages'] = $total_pages;
+
+    return $response;
 }
 
 function altm_get_image_renaming_chunk_ids($tab, $search = '', $type_filter = '', $chunk_size = 25, $cursor_id = 0) {
@@ -946,7 +1030,7 @@ function altm_get_all_renaming_image_ids($search = '', $type_filter = '', $curso
     return altm_get_image_renaming_chunk_ids('all-images', $search, $type_filter, $limit, $cursor_id);
 }
 
-function altm_handle_image_renaming_page_request($tab) {
+function altm_handle_image_renaming_page_request($tab, $include_count = true) {
     if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_fetch_user_credits_nonce')) {
         wp_send_json_error(array('message' => 'Invalid nonce.'));
         return;
@@ -958,7 +1042,11 @@ function altm_handle_image_renaming_page_request($tab) {
     }
 
     $request = altm_get_image_renaming_query_request();
-    $response = altm_get_image_renaming_page_response($tab, $request['page'], $request['per_page'], $request['search'], $request['type_filter']);
+    if ($include_count) {
+        $response = altm_get_image_renaming_page_response($tab, $request['page'], $request['per_page'], $request['search'], $request['type_filter']);
+    } else {
+        $response = altm_get_image_renaming_rows_response($tab, $request['page'], $request['per_page'], $request['search'], $request['type_filter'], true);
+    }
 
     if (is_wp_error($response)) {
         wp_send_json_error(array('message' => $response->get_error_message()));
@@ -972,9 +1060,41 @@ function altm_handle_image_renaming_page_request($tab) {
  * AJAX handler to get images with bad names for the image renaming page
  */
 function altm_get_bad_name_images() {
-    altm_handle_image_renaming_page_request('bad-names');
+    altm_handle_image_renaming_page_request('bad-names', false);
 }
 add_action('wp_ajax_altm_get_bad_name_images', 'altm_get_bad_name_images');
+
+/**
+ * AJAX handler to count images with bad names independently from the image list.
+ */
+function altm_get_bad_name_images_count() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'altm_fetch_user_credits_nonce')) {
+        wp_send_json_error(array('message' => 'Invalid nonce.'));
+        return;
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions.'));
+        return;
+    }
+
+    $request = altm_get_image_renaming_query_request();
+    $total = altm_get_image_renaming_total_count('bad-names', $request['search'], '');
+
+    if (is_wp_error($total)) {
+        wp_send_json_error(array(
+            'code' => $total->get_error_code(),
+            'message' => $total->get_error_message(),
+        ), 503);
+        return;
+    }
+
+    wp_send_json_success(array(
+        'total' => $total,
+        'pages' => $total > 0 ? (int) ceil($total / max(1, $request['per_page'])) : 0,
+    ));
+}
+add_action('wp_ajax_altm_get_bad_name_images_count', 'altm_get_bad_name_images_count');
 
 /**
  * AJAX handler to get all images for the image renaming page

@@ -82,9 +82,14 @@ jQuery(document).ready(function ($) {
     // Bad Names tab state
     let badNamesCurrentPage = 1;
     let badNamesTotalPages = 1;
-    let badNamesTotalItems = 0;
+    let badNamesTotalItems = null;
     let badNamesPageSize = 25;
     let badNamesSearchTerm = '';
+    let badNamesCountState = 'idle';
+    let badNamesLoadedItemCount = 0;
+    let badNamesHasMore = false;
+    let badNamesListRequestId = 0;
+    let badNamesCountRequestId = 0;
 
     // Initialize the page
     init();
@@ -516,7 +521,94 @@ jQuery(document).ready(function ($) {
         }
     }
 
-    async function loadBadNameImages() {
+    function showBadNamesCountUnavailable(message) {
+        const fallbackMessage = 'Unable to count the exact number because the server could not complete the image count. The images displayed below are still correct.';
+
+        badNamesCountState = 'unavailable';
+        badNamesTotalItems = null;
+        $('#bad-names-count').text('~').attr('title', 'Exact count unavailable');
+        $('#bulk-rename-all-bad-names .total-count').text('~');
+        $('#bulk-rename-all-bad-names').prop('disabled', true);
+        $('#bad-names-count-notice .altm-count-notice-message').text(message || fallbackMessage);
+        $('#bad-names-count-notice').show();
+        updateBadNamesApproximatePagination(badNamesLoadedItemCount, badNamesHasMore);
+    }
+
+    async function loadBadNameImagesCount(requestId) {
+        try {
+            const response = await fetch(altmImageRenaming.ajaxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'action': 'altm_get_bad_name_images_count',
+                    'per_page': badNamesPageSize,
+                    'search': badNamesSearchTerm,
+                    'nonce': altmImageRenaming.fetchCreditsNonce,
+                    'lang': getCurrentWpmlLanguage()
+                })
+            });
+
+            const data = await response.json();
+            if (requestId !== badNamesCountRequestId) {
+                return;
+            }
+
+            if (data.success) {
+                const responseData = data.data || data;
+                const total = parseInt(responseData.total, 10) || 0;
+                const pages = parseInt(responseData.pages, 10) || 0;
+
+                badNamesCountState = 'available';
+                badNamesTotalItems = total;
+                $('#bad-names-count').text(formatNumber(total)).removeAttr('title');
+                $('#bulk-rename-all-bad-names .total-count').text(formatNumber(total));
+                $('#bulk-rename-all-bad-names').prop('disabled', total === 0);
+                $('#bad-names-count-notice').hide();
+
+                const lastAvailablePage = Math.max(1, pages);
+                if (badNamesCurrentPage > lastAvailablePage) {
+                    badNamesCurrentPage = lastAvailablePage;
+                    loadBadNameImages(false);
+                    return;
+                }
+
+                updateBadNamesPagination(total, pages);
+                return;
+            }
+
+            const errorData = data && data.data ? data.data : {};
+            const message = typeof errorData === 'object' && errorData.message
+                ? errorData.message
+                : '';
+            showBadNamesCountUnavailable(message);
+        } catch (error) {
+            if (requestId !== badNamesCountRequestId) {
+                return;
+            }
+
+            console.error('Error counting bad name images:', error);
+            showBadNamesCountUnavailable('Unable to count the exact number because the server could not complete the image count. The images displayed below are still correct.');
+        }
+    }
+
+    async function loadBadNameImages(refreshCount = true) {
+        const listRequestId = ++badNamesListRequestId;
+        let countRequestId = null;
+        badNamesLoadedItemCount = 0;
+        badNamesHasMore = false;
+
+        if (refreshCount) {
+            countRequestId = ++badNamesCountRequestId;
+            badNamesCountState = 'loading';
+            badNamesTotalItems = null;
+            $('#bad-names-count').text('…').attr('title', 'Calculating exact count');
+            $('#bulk-rename-all-bad-names .total-count').text('…');
+            $('#bulk-rename-all-bad-names').prop('disabled', true);
+            $('#bad-names-count-notice').hide();
+        }
+
         try {
             const list = $('#bad-names-list');
             list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
@@ -524,7 +616,7 @@ jQuery(document).ready(function ($) {
                 '<span style="color: #666;">Loading images with bad names...</span>' +
                 '</td></tr>');
 
-            const response = await fetch(altmImageRenaming.ajaxUrl, {
+            const responsePromise = fetch(altmImageRenaming.ajaxUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -538,42 +630,57 @@ jQuery(document).ready(function ($) {
                     'lang': getCurrentWpmlLanguage()
                 })
             });
+            if (countRequestId !== null) {
+                loadBadNameImagesCount(countRequestId);
+            }
+
+            const response = await responsePromise;
 
             const data = await response.json();
+            if (listRequestId !== badNamesListRequestId) {
+                return;
+            }
 
             if (data.success) {
-                // Handle different response structures
                 let images = [];
-                let total = 0;
-                let pages = 1;
+                let hasMore = false;
 
                 if (data.data) {
                     images = data.data.images || [];
-                    total = data.data.total || 0;
-                    pages = data.data.pages || 1;
+                    hasMore = !!data.data.has_more;
                 } else {
-                    // Fallback if data is at root level
                     images = data.images || [];
-                    total = data.total || 0;
-                    pages = data.pages || 1;
+                    hasMore = !!data.has_more;
                 }
 
+                badNamesLoadedItemCount = images.length;
+                badNamesHasMore = hasMore;
                 displayImages(images, '#bad-names-list', 'bad-names');
-                updateBadNamesPagination(total, pages);
-                badNamesTotalItems = total;
-                $('#bad-names-count').text(formatNumber(total));
-                $('#bulk-rename-all-bad-names .total-count').text(formatNumber(total));
-                $('#bulk-rename-all-bad-names').prop('disabled', total === 0);
+
+                if (badNamesCountState === 'available') {
+                    const pages = badNamesTotalItems > 0 ? Math.ceil(badNamesTotalItems / badNamesPageSize) : 0;
+                    updateBadNamesPagination(badNamesTotalItems, pages);
+                } else {
+                    updateBadNamesApproximatePagination(images.length, hasMore);
+                }
             } else {
+                const errorData = data && data.data ? data.data : {};
+                const errorMessage = typeof errorData === 'object' && errorData.message
+                    ? errorData.message
+                    : (typeof errorData === 'string' ? errorData : 'Unknown error occurred. Please try again.');
                 list.html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                     '<div style="color: #d63638; line-height: 1.6;">' +
                     '<div style="font-size: 48px; margin-bottom: 16px;">⚠️ </div>' +
                     '<h3 style="margin: 0 0 12px 0; color: #d63638;">Error loading bad name images</h3>' +
-                    '<p style="margin: 0;">' + (data.data || 'Unknown error occurred. Please try again.') + '</p>' +
+                    '<p style="margin: 0;">' + escapeHtml(errorMessage) + '</p>' +
                     '</div>' +
                     '</td></tr>');
             }
         } catch (error) {
+            if (listRequestId !== badNamesListRequestId) {
+                return;
+            }
+
             console.error('Error loading bad name images:', error);
             $('#bad-names-list').html('<tr><td colspan="' + getTableColumnCount() + '" style="text-align: center; padding: 40px;">' +
                 '<div style="color: #d63638; line-height: 1.6;">' +
@@ -718,6 +825,40 @@ jQuery(document).ready(function ($) {
         addPaginationEventListeners();
     }
 
+    function updateBadNamesApproximatePagination(itemCount, hasMore) {
+        const container = $('#tab-content-bad-names .altm-pagination-container');
+        container.find('.altm-pagination').remove();
+
+        badNamesTotalPages = Math.max(1, badNamesCurrentPage + (hasMore ? 1 : 0));
+
+        if (itemCount === 0 && badNamesCurrentPage === 1) {
+            return;
+        }
+
+        const startIndex = (badNamesCurrentPage - 1) * badNamesPageSize + 1;
+        const endIndex = itemCount > 0 ? startIndex + itemCount - 1 : startIndex - 1;
+        let paginationHtml = '<div class="altm-pagination">';
+        paginationHtml += itemCount > 0
+            ? '<div class="altm-pagination-info">Showing ' + startIndex + ' to ' + endIndex + '; exact total unavailable</div>'
+            : '<div class="altm-pagination-info">No images on this page; exact total unavailable</div>';
+        paginationHtml += '<div class="altm-pagination-numbers">';
+
+        if (badNamesCurrentPage > 1) {
+            paginationHtml += '<button type="button" class="button altm-pagination-page" data-page="' + (badNamesCurrentPage - 1) + '" data-tab="bad-names">Previous</button>';
+        }
+
+        paginationHtml += '<span style="padding: 0 8px; color: #50575e;">Page ' + badNamesCurrentPage + '</span>';
+
+        if (hasMore) {
+            paginationHtml += '<button type="button" class="button altm-pagination-page" data-page="' + (badNamesCurrentPage + 1) + '" data-tab="bad-names">Next</button>';
+        }
+
+        paginationHtml += '</div>';
+        paginationHtml += '</div>';
+        container.find('.altm-pagination-controls').append(paginationHtml);
+        addPaginationEventListeners();
+    }
+
     function updateBadNamesPagination(total, pages) {
         badNamesTotalPages = pages;
         const container = $('#tab-content-bad-names .altm-pagination-container');
@@ -802,7 +943,7 @@ jQuery(document).ready(function ($) {
             }
 
             badNamesCurrentPage = page;
-            loadBadNameImages();
+            loadBadNameImages(false);
         } else {
             // Validate page number for all images tab (default)
             if (page < 1 || page > allImagesTotalPages) {
