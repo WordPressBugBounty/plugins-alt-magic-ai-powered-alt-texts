@@ -268,12 +268,16 @@ function altm_handle_rename_only($file) {
 /**
  * Get post context when uploading via post editor
  * 
+ * @param bool $use_seo Whether SEO keyword context is enabled.
+ * @param bool $use_post Whether post-title context is enabled.
+ * @param bool $use_woocommerce_product_name Whether product-name context is enabled.
+ * @param bool $include_variation_colour Whether variation-colour context is enabled.
  * @return array|false Post context array or false if not available
  */
-function altm_get_upload_post_context($use_seo, $use_post, $use_woocommerce_product_name) {
+function altm_get_upload_post_context($use_seo, $use_post, $use_woocommerce_product_name, $include_variation_colour = false) {
 
     // If neither option is enabled, skip building context entirely
-    if (!$use_seo && !$use_post && !$use_woocommerce_product_name) {
+    if (!$use_seo && !$use_post && !$use_woocommerce_product_name && !$include_variation_colour) {
         return false;
     }
     // Try to get post ID from various sources
@@ -320,15 +324,31 @@ function altm_get_upload_post_context($use_seo, $use_post, $use_woocommerce_prod
     // Get SEO keywords if enabled
     $seo_keywords = $use_seo ? altm_fetch_seo_keywords($post_id) : '';
 
-    // Decide between post title and product name based on post type and settings
+    // Decide between post title and product name based on post type and settings.
     $post_title = '';
     $woocommerce_product_name = '';
-    if ($use_woocommerce_product_name && $post->post_type === 'product') {
-        $woocommerce_product_name = $post->post_title;
+    $product_post = $post;
+    if ($post->post_type === 'product_variation' && !empty($post->post_parent)) {
+        $variation_parent = get_post($post->post_parent);
+        if ($variation_parent && $variation_parent->post_type === 'product') {
+            $product_post = $variation_parent;
+        }
+    }
+
+    if ($use_woocommerce_product_name && $product_post->post_type === 'product') {
+        $woocommerce_product_name = $product_post->post_title;
         $post_title = '';
     } else {
         $post_title = $use_post ? $post->post_title : '';
         $woocommerce_product_name = '';
+    }
+
+    $woocommerce_attributes = array();
+    if ($include_variation_colour && $post->post_type === 'product_variation') {
+        $variation_colour = altm_resolve_woocommerce_colour_for_variations(array($post->ID));
+        if ($variation_colour !== '') {
+            $woocommerce_attributes['colour'] = $variation_colour;
+        }
     }
     
     return array(
@@ -336,7 +356,8 @@ function altm_get_upload_post_context($use_seo, $use_post, $use_woocommerce_prod
         'post_title' => $post_title,
         'post_type' => $post->post_type,
         'seo_keywords' => $seo_keywords,
-        'woocommerce_product_name' => $woocommerce_product_name
+        'woocommerce_product_name' => $woocommerce_product_name,
+        'woocommerce_attributes' => $woocommerce_attributes
     );
 }
 
@@ -366,13 +387,14 @@ function altm_handle_combined_processing($file) {
     $combined_use_seo = get_option('alt_magic_use_seo_keywords', 0);
     $combined_use_post = get_option('alt_magic_use_post_title', 0);
     $combined_use_woocommerce_product_name = get_option('alt_magic_woocommerce_use_product_name', 0);
+    $combined_include_variation_colour = altm_get_woocommerce_colour_attribute_mapping() !== 'none';
 
     // Only fetch post context if at least one option requires it
-    $post_context = altm_get_upload_post_context($combined_use_seo, $combined_use_post, $combined_use_woocommerce_product_name);
+    $post_context = altm_get_upload_post_context($combined_use_seo, $combined_use_post, $combined_use_woocommerce_product_name, $combined_include_variation_colour);
     
     // Determine if we have meaningful post context for source tracking
     $has_meaningful_context = is_array($post_context) && !empty($post_context['post_id']) && 
-                             (!empty($post_context['post_title']) || !empty($post_context['seo_keywords']) || !empty($post_context['woocommerce_product_name']));
+                             (!empty($post_context['post_title']) || !empty($post_context['seo_keywords']) || !empty($post_context['woocommerce_product_name']) || !empty($post_context['woocommerce_attributes']));
     
     $source = $has_meaningful_context ? 'auto_upload-with_post_context' : 'auto_upload-no_post_context';
     

@@ -62,6 +62,13 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
 
     //$image_url = set_url_scheme($image_url, 'https'); // Force HTTPS
     $file_extension = pathinfo($image_url, PATHINFO_EXTENSION);
+    $image_path = wp_parse_url($image_url, PHP_URL_PATH);
+    $image_name = $image_path ? wp_basename($image_path) : '';
+
+    // Initialize optional context so requests remain predictable when settings are disabled.
+    $seo_keywords = '';
+    $parent_post_title = '';
+    $woocommerce_product_name = '';
 
     // Image metadata logs
     altm_log('File extension: ' . $file_extension);
@@ -78,9 +85,15 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
             $seo_keywords = $use_seo_keywords ? altm_fetch_seo_keywords($primary_post_id) : '';
             altm_log('SEO keywords: ' . $seo_keywords);
 
-            // If WooCommerce product context is enabled and parent is a product, prefer product_name and clear title
-            if ($use_woocommerce_product_name && $primary_post_type === 'product') {
-                $woocommerce_product_name = get_the_title($primary_post_id) ?: '';
+            // Variation images should use the parent product title as product context.
+            $woocommerce_product_id = $primary_post_type === 'product_variation'
+                ? (int) wp_get_post_parent_id($primary_post_id)
+                : $primary_post_id;
+            $woocommerce_product_type = $woocommerce_product_id ? get_post_type($woocommerce_product_id) : '';
+
+            // If WooCommerce product context is enabled, prefer product_name and clear title.
+            if ($use_woocommerce_product_name && $woocommerce_product_type === 'product') {
+                $woocommerce_product_name = get_the_title($woocommerce_product_id) ?: '';
                 $parent_post_title = '';
             } else {
                 $parent_post_title = $use_post_title ? (get_the_title($primary_post_id) ?: '') : '';
@@ -95,6 +108,8 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
             $source = $source . '-no_post_context';
         }
     }
+
+    $woocommerce_attributes = altm_get_woocommerce_variation_colour_attributes($attachment_id);
 
 
     //get site visibility
@@ -124,6 +139,10 @@ function altm_generate_alt_text($attachment_id, $source = 'missing') {
         ],
         'wp_plugin_source' => $source
     );
+
+    if (!empty($woocommerce_attributes)) {
+        $request_body['attributes'] = $woocommerce_attributes;
+    }
 
 
     if ($site_visibility == 1 ) {
@@ -573,6 +592,7 @@ function altm_prepare_batch_image_data($attachment_id) {
     $image_url = wp_get_attachment_url($attachment_id);
     $image_name = substr(strrchr($image_url, '/'), 1);
     $file_extension = pathinfo($image_url, PATHINFO_EXTENSION);
+    $woocommerce_attributes = altm_get_woocommerce_variation_colour_attributes($attachment_id);
 
     // Resolve primary content post once if any context option is enabled
     $primary_post_id = 0;
@@ -595,8 +615,13 @@ function altm_prepare_batch_image_data($attachment_id) {
     $parent_post_title = '';
     $woocommerce_product_name = '';
     if ($primary_post_id) {
-        if ($use_woocommerce_product_name && $primary_post_type === 'product') {
-            $woocommerce_product_name = get_the_title($primary_post_id) ?: '';
+        $woocommerce_product_id = $primary_post_type === 'product_variation'
+            ? (int) wp_get_post_parent_id($primary_post_id)
+            : $primary_post_id;
+        $woocommerce_product_type = $woocommerce_product_id ? get_post_type($woocommerce_product_id) : '';
+
+        if ($use_woocommerce_product_name && $woocommerce_product_type === 'product') {
+            $woocommerce_product_name = get_the_title($woocommerce_product_id) ?: '';
             $parent_post_title = '';
         } else {
             $parent_post_title = $use_post_title ? (get_the_title($primary_post_id) ?: '') : '';
@@ -624,6 +649,10 @@ function altm_prepare_batch_image_data($attachment_id) {
         'language_type' => 'code',
         'language' => $language_code
     );
+
+    if (!empty($woocommerce_attributes)) {
+        $image_data['attributes'] = $woocommerce_attributes;
+    }
 
     // Handle private sites with base64 encoding
     if ($site_visibility == 1) {

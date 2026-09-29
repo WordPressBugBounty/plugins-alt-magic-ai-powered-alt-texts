@@ -193,6 +193,7 @@ function alt_magic_add_settings() {
         'alt_magic_refresh_alt_text' => ['default' => 'all', 'type' => 'string'],
         'alt_magic_private_site' => ['default' => $is_private_site, 'type' => 'boolean'],
         'alt_magic_woocommerce_use_product_name' => ['default' => 0, 'type' => 'boolean'],
+        'alt_magic_woocommerce_colour_attribute' => ['default' => 'none', 'type' => 'string'],
         'alt_magic_rename_use_seo_keywords' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_rename_use_post_title' => ['default' => 0, 'type' => 'boolean'],
         'alt_magic_rename_use_woocommerce_product_name' => ['default' => 0, 'type' => 'boolean'],

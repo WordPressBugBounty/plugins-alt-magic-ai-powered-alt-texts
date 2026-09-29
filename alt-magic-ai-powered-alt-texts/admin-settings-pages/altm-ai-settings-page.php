@@ -29,6 +29,7 @@ function altm_get_valid_concurrency_value() {
 // Include the supported languages file
 
 function alt_magic_render_ai_settings_page() {
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.4';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');
@@ -36,7 +37,7 @@ function alt_magic_render_ai_settings_page() {
         'alt-magic-media-popup-button-css',
         plugin_dir_url(__FILE__) . '../css/altm-ai-settings-page.css',
         array(), // Dependencies
-        '1.0.5'  // Version number
+        $asset_version
     );
 
     // Register and enqueue the JavaScript file
@@ -44,7 +45,7 @@ function alt_magic_render_ai_settings_page() {
         'alt-magic-ai-settings-js',
         esc_url(plugin_dir_url(__FILE__) . '../scripts/altm-ai-settings-page-script.js'),
         array('jquery'), // Dependencies
-        '1.0.5', // Version number
+        $asset_version,
         true // Load in footer
     );
     wp_enqueue_script('alt-magic-ai-settings-js');
@@ -74,6 +75,7 @@ function alt_magic_render_ai_settings_page() {
         'alt_magic_refresh_alt_text' => get_option('alt_magic_refresh_alt_text', 'all'),
         'alt_magic_private_site' => get_option('alt_magic_private_site', 0),
         'alt_magic_woocommerce_use_product_name' => get_option('alt_magic_woocommerce_use_product_name', 0),
+        'alt_magic_woocommerce_colour_attribute' => altm_get_woocommerce_colour_attribute_mapping(),
         'alt_magic_max_concurrency' => altm_get_valid_concurrency_value(),
         // Rename options
         'alt_magic_auto_rename_on_upload' => get_option('alt_magic_auto_rename_on_upload', 0),
@@ -92,6 +94,7 @@ function alt_magic_render_ai_settings_page() {
         : $wpml_language['label'];
     $bulk_generation_page_url = admin_url('admin.php?page=alt-magic-bulk-generation');
     $help_page_url = admin_url('admin.php?page=alt-magic-help');
+    $woocommerce_colour_attribute_options = altm_get_woocommerce_colour_attribute_mapping_options();
     $show_onboarding_banner = false; // Onboarding has moved to the account connection screen.
     
     // For debugging purposes, you can uncomment these lines:
@@ -322,6 +325,19 @@ function alt_magic_render_ai_settings_page() {
                         <td>
                             <input type="checkbox" name="alt_magic_woocommerce_use_product_name" class="alt-magic-setting" <?php checked(!empty($options['alt_magic_woocommerce_use_product_name'])); ?>> Use product name for generating alt text
                             <p class="alt-magic-setting-sub-label">Note: Product name will be used for the context of the image alt text.</p>
+                        </td>
+                    </tr>
+                    <tr class="setting-row" id="altm-woocommerce-colour-row">
+                        <th scope="row">
+                            <div class="setting-title"><label for="alt-magic-woocommerce-colour-attribute">Select Colour Attribute</label></div>
+                            <div class="setting-description" id="altm-woocommerce-colour-help">Use this attribute as variant colour for product images alt text.</div>
+                        </th>
+                        <td>
+                            <select id="alt-magic-woocommerce-colour-attribute" name="alt_magic_woocommerce_colour_attribute" class="alt-magic-setting" aria-describedby="altm-woocommerce-colour-help">
+                                <?php foreach ($woocommerce_colour_attribute_options as $attribute_value => $attribute_label): ?>
+                                    <option value="<?php echo esc_attr($attribute_value); ?>" <?php selected($options['alt_magic_woocommerce_colour_attribute'], $attribute_value); ?>><?php echo esc_html($attribute_label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </td>
                     </tr>
                     <?php endif; ?>
@@ -566,6 +582,7 @@ function alt_magic_sync_settings_with_api() {
         'alt_magic_refresh_alt_text' => get_option('alt_magic_refresh_alt_text', 'all'),
         'alt_magic_private_site' => get_option('alt_magic_private_site', 0),
         'alt_magic_woocommerce_use_product_name' => get_option('alt_magic_woocommerce_use_product_name', 0),
+        'alt_magic_woocommerce_colour_attribute' => altm_get_woocommerce_colour_attribute_mapping(),
         'alt_magic_max_concurrency' => altm_get_valid_concurrency_value(),
         // Rename context options
         'alt_magic_rename_use_seo_keywords' => get_option('alt_magic_rename_use_seo_keywords', 0),
@@ -629,6 +646,7 @@ function alt_magic_sanitize_option_value($key, $value) {
         'alt_magic_refresh_alt_text' => 'string',
         'alt_magic_private_site' => 'boolean',
         'alt_magic_woocommerce_use_product_name' => 'boolean',
+        'alt_magic_woocommerce_colour_attribute' => 'string',
         'alt_magic_rename_use_seo_keywords' => 'boolean',
         'alt_magic_rename_use_post_title' => 'boolean',
         'alt_magic_rename_use_woocommerce_product_name' => 'boolean',
@@ -719,6 +737,7 @@ function alt_magic_save_settings() {
         'alt_magic_refresh_alt_text',
         'alt_magic_private_site',
         'alt_magic_woocommerce_use_product_name',
+        'alt_magic_woocommerce_colour_attribute',
         'alt_magic_rename_use_seo_keywords',
         'alt_magic_rename_use_post_title',
         'alt_magic_rename_use_woocommerce_product_name',
@@ -739,8 +758,11 @@ function alt_magic_save_settings() {
         return;
     }
 
-    // Sanitize value based on the option type
-    $value = alt_magic_sanitize_option_value($key, $value);
+    // Sanitize value based on the option type. The WooCommerce mapping must
+    // also match an attribute that currently exists in this store.
+    $value = $key === 'alt_magic_woocommerce_colour_attribute'
+        ? altm_sanitize_woocommerce_colour_attribute_mapping($value)
+        : alt_magic_sanitize_option_value($key, $value);
 
     $current_value = get_option($key, null);
     if ((string) $current_value === (string) $value) {

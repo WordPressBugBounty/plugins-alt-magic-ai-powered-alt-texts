@@ -173,6 +173,9 @@ function altm_generate_combined_alt_and_filename($temp_file_path, $mime_type, $p
     $parent_post_title = ($effective_use_post && $post_context) ? $post_context['post_title'] : '';
     $seo_keywords = ($effective_use_seo && $post_context) ? $post_context['seo_keywords'] : '';
     $woocommerce_product_name = ($use_woocommerce_product_name && $post_context) ? $post_context['woocommerce_product_name'] : '';
+    $woocommerce_attributes = ($post_context && !empty($post_context['woocommerce_attributes']) && is_array($post_context['woocommerce_attributes']))
+        ? $post_context['woocommerce_attributes']
+        : array();
     
     // Prepare request body with optional post context
     $request_body = array(
@@ -198,6 +201,10 @@ function altm_generate_combined_alt_and_filename($temp_file_path, $mime_type, $p
         'wp_plugin_source' => $source,
         'rename_language' => $rename_language
     );
+
+    if (!empty($woocommerce_attributes)) {
+        $request_body['attributes'] = $woocommerce_attributes;
+    }
     
     // Make API request (same format as alt text generator)
     $args = array(

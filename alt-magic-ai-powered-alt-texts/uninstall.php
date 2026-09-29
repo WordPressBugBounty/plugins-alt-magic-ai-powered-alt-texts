@@ -91,6 +91,7 @@ $options_to_remove = [
     'alt_magic_refresh_alt_text',
     'alt_magic_private_site',
     'alt_magic_woocommerce_use_product_name',
+    'alt_magic_woocommerce_colour_attribute',
     'alt_magic_rename_use_seo_keywords',
     'alt_magic_rename_use_post_title',
     'alt_magic_rename_use_woocommerce_product_name',
