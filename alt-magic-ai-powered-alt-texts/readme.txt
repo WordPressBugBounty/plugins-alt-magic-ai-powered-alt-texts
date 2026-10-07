@@ -3,7 +3,7 @@ Contributors: altmagic, advait95
 Tags: ai alt text, image alt text, accessibility, image seo, bulk alt text
 Requires at least: 5.0
 Tested up to: 7.1
-Stable tag: 1.8.4
+Stable tag: 1.8.5
 Requires PHP: 7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -188,6 +188,10 @@ For detailed information about data handling, privacy practices, and terms of se
 
 
 == Changelog ==
+= 1.8.5 =
+* Fixed WooCommerce variation colour lookup
+* Small bug fixes related to UI
+
 = 1.8.4 =
 * Added colour support in WooCommerce variants.
 
@@ -280,6 +284,9 @@ For detailed information about data handling, privacy practices, and terms of se
 * Added language selection for image renaming feature
 
 == Upgrade Notice ==
+= 1.8.5 =
+* Corrects WooCommerce variation colour, title and SEO context when an image has a stale attachment parent.
+
 = 1.8.4 =
 * Added colour support in WooCommerce variants.
 

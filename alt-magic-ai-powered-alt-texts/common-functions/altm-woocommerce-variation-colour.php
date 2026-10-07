@@ -156,7 +156,7 @@ function altm_get_woocommerce_colour_from_variation($variation) {
  * @param int $attachment_id WordPress attachment ID.
  * @return int[]
  */
-function altm_get_woocommerce_variation_ids_for_attachment($attachment_id) {
+function altm_get_woocommerce_image_variation_ids($attachment_id) {
     $attachment_id = absint($attachment_id);
     if (!$attachment_id || !post_type_exists('product_variation')) {
         return array();
@@ -179,9 +179,36 @@ function altm_get_woocommerce_variation_ids_for_attachment($attachment_id) {
         ),
     ));
 
-    // Some importers attach the media item directly to the variation.
+    return array_values(array_unique(array_filter(array_map('absint', (array) $variation_ids))));
+}
+
+/**
+ * Accept legacy attachment-parent metadata only if it does not contradict
+ * the variation's own image assignment.
+ */
+function altm_is_woocommerce_variation_attachment_parent($variation_id, $attachment_id) {
+    if (get_post_type($variation_id) !== 'product_variation') {
+        return false;
+    }
+
+    $image_id = (int) get_post_thumbnail_id($variation_id);
+    return $image_id === 0 || $image_id === (int) $attachment_id;
+}
+
+/**
+ * Resolve variation ownership, preferring explicit image assignments.
+ *
+ * @param int $attachment_id WordPress attachment ID.
+ * @return int[]
+ */
+function altm_get_woocommerce_variation_ids_for_attachment($attachment_id) {
+    $attachment_id = absint($attachment_id);
+    $variation_ids = altm_get_woocommerce_image_variation_ids($attachment_id);
+
+    // Importer metadata is a fallback, never an additional image owner.
     $attachment = get_post($attachment_id);
-    if ($attachment && !empty($attachment->post_parent) && get_post_type($attachment->post_parent) === 'product_variation') {
+    if (empty($variation_ids) && $attachment && !empty($attachment->post_parent)
+        && altm_is_woocommerce_variation_attachment_parent($attachment->post_parent, $attachment_id)) {
         $variation_ids[] = (int) $attachment->post_parent;
     }
 

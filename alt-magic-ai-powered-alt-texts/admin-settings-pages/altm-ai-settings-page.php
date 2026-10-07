@@ -29,7 +29,7 @@ function altm_get_valid_concurrency_value() {
 // Include the supported languages file
 
 function alt_magic_render_ai_settings_page() {
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.4';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.5';
 
     // Enqueue the CSS file with a version number
     //altm_log('Enqueueing AI settings page CSS');

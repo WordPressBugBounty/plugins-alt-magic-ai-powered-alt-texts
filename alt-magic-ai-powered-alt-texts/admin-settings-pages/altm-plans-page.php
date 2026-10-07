@@ -831,7 +831,7 @@ function altm_enqueue_plans_assets($hook_suffix) {
         return;
     }
 
-    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.4';
+    $asset_version = defined('ALT_MAGIC_PLUGIN_VERSION') ? ALT_MAGIC_PLUGIN_VERSION : '1.8.5';
 
     wp_enqueue_style(
         'altm-plans',

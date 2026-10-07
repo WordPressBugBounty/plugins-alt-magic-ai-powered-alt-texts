@@ -8,11 +8,12 @@ if (!defined('ABSPATH')) {
 /**
  * Resolve the primary post/page where an attachment image is used.
  * Strategy:
- * 1) Prefer post_parent if it points to a non-attachment, published post.
- * 2) Fallback: search published posts/pages/products by content containing any size URL of the image.
- * 3) Fallback: check featured image mapping (_thumbnail_id).
- * 4) Fallback: search postmeta containing the filename.
- * Returns the first suitable post ID found, or 0 if none.
+ * 1) Prefer explicit WooCommerce variation image ownership.
+ * 2) Fallback: use a non-attachment parent unless its variation image contradicts ownership.
+ * 3) Fallback: search content containing any size URL of the image.
+ * 4) Fallback: check featured image mapping (_thumbnail_id).
+ * 5) Fallback: search postmeta containing the filename.
+ * Returns an ID/type pair, or null when no unambiguous context is available.
  */
 function altm_get_primary_parent_post($attachment_id) {
 
@@ -23,11 +24,27 @@ function altm_get_primary_parent_post($attachment_id) {
         return null;
     }
 
-    // 1) Direct parent (no type restriction)
+    // Use the same image ownership as the colour lookup, before importer metadata.
+    $variation_ids = altm_get_woocommerce_image_variation_ids($attachment_id);
+    if (count($variation_ids) === 1) {
+        return array('id' => (int) reset($variation_ids), 'type' => 'product_variation');
+    }
+    if (count($variation_ids) > 1) {
+        // Shared images have product context only when every owner has the same parent.
+        $product_ids = array_unique(array_map('wp_get_post_parent_id', $variation_ids));
+        $product_id = count($product_ids) === 1 ? (int) reset($product_ids) : 0;
+        return $product_id && get_post_type($product_id) === 'product'
+            ? array('id' => $product_id, 'type' => 'product')
+            : null;
+    }
+
+    // 2) Direct parent (no type restriction)
     $parent_id = (int) $attachment->post_parent;
     if ($parent_id) {
         $parent = get_post($parent_id);
-        if ($parent && $parent->post_type !== 'attachment') {
+        if ($parent && $parent->post_type !== 'attachment'
+            && ($parent->post_type !== 'product_variation'
+                || altm_is_woocommerce_variation_attachment_parent($parent_id, $attachment_id))) {
             altm_log('Parent found: ' . $parent->ID . ' type: ' . $parent->post_type);
             return array('id' => (int)$parent->ID, 'type' => $parent->post_type);
         }
